@@ -1,8 +1,9 @@
 /**
- * Job Hunt Assist - Popup Script (Updated for state passing)
+ * Job Hunt Assist - Improved Popup Script
  *
  * This script controls the popup UI and manages communication with
- * the content script and background script.
+ * the content script and background script. It now includes improved
+ * handling of job data and better integration with the React app.
  */
 
 // DOM Elements
@@ -67,6 +68,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Extract job data from the current page
 async function extractJobDataFromPage(tab) {
   try {
+    // Ensure content script is injected
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"],
+      });
+    } catch (e) {
+      // Content script injection failed, possibly already injected
+      console.log("Content script may already be injected:", e);
+    }
+
     // Request content script to extract job data
     chrome.tabs.sendMessage(
       tab.id,
@@ -168,11 +180,25 @@ function showErrorState() {
 
 // Check connection to the job tracker app
 function checkAppConnection() {
-  // For development, we'll always show connected status
-  connectionStatus.innerHTML = `
-    <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-    Connected to Job Hunt Tracker (localhost)
-  `;
+  // Check if we can connect to the application
+  fetch("http://localhost:3000/api/health", {
+    method: "GET",
+    mode: "no-cors", // Use no-cors mode since we're just checking connectivity
+  })
+    .then(() => {
+      // If fetch succeeds, we can connect
+      connectionStatus.innerHTML = `
+      <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
+      Connected to Job Hunt Tracker
+    `;
+    })
+    .catch(() => {
+      // If fetch fails, we can't connect
+      connectionStatus.innerHTML = `
+      <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
+      Not connected to Job Hunt Tracker
+    `;
+    });
 }
 
 // Event Listeners
@@ -206,8 +232,17 @@ createBtn.addEventListener("click", async () => {
   `;
 
   try {
-    // Create application with current data
-    createApplication(jobData);
+    // Save job data to storage (to be accessed by the background script)
+    chrome.storage.local.set({ pendingJobApplication: jobData });
+
+    // Construct the URL for the job form
+    const appUrl = "http://localhost:3000/jobs/new";
+
+    // Create a new tab with the job form
+    chrome.tabs.create({ url: appUrl }, (tab) => {
+      // We won't need to do anything else here as the background script will handle
+      // injecting the data after the new tab loads (see background.js)
+    });
   } catch (error) {
     console.error("Error sending job data:", error);
 
@@ -219,45 +254,3 @@ createBtn.addEventListener("click", async () => {
     errorState.textContent = "Failed to send job data. Please try again.";
   }
 });
-
-// Create application in the job tracker app by redirecting to the job form page with state
-function createApplication(jobData) {
-  // Save job data to storage (to be accessed by the background script)
-  chrome.storage.local.set({ pendingJobApplication: jobData });
-
-  // Construct the URL for the job form
-  const appUrl = "http://localhost:3000/jobs/new";
-
-  // We're going to use a content script to inject our state
-  chrome.tabs.create({ url: appUrl }, (tab) => {
-    // Wait for the new tab to load, then inject the content script to handle state transfer
-    chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-      if (tabId === tab.id && info.status === "complete") {
-        // Remove this listener
-        chrome.tabs.onUpdated.removeListener(listener);
-
-        // Execute script to inject the state
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          function: injectStateToReactApp,
-          args: [jobData],
-        });
-      }
-    });
-  });
-}
-
-// This function will be executed in the context of the job form page to inject state
-function injectStateToReactApp(jobData) {
-  // Store job data in localStorage so React can access it
-  localStorage.setItem("pendingJobData", JSON.stringify(jobData));
-
-  // Dispatch a custom event to notify React the data is available
-  window.dispatchEvent(
-    new CustomEvent("jobDataAvailable", {
-      detail: { source: "chromeExtension" },
-    })
-  );
-
-  console.log("Job data stored in localStorage for React app");
-}

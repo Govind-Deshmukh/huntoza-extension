@@ -1,55 +1,121 @@
 /**
- * Job Hunt Assist - Background Script (Updated for state passing)
+ * Job Hunt Assist - Improved Background Script
  *
  * This script runs in the background and handles:
  * 1. Communication between popup and content scripts
  * 2. Facilitating state transfer to the React app
+ * 3. Handling job data persistence between extension sessions
  */
+
+// Global state to track pending application data
+let pendingApplicationData = null;
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "saveJobData") {
     // Save job data to storage
     chrome.storage.local.set({ jobData: request.data });
+    // Send response that data was saved
+    sendResponse({ success: true });
+  } else if (request.action === "getPendingApplicationData") {
+    // Return any pending application data when requested
+    sendResponse({ data: pendingApplicationData });
+    // Clear after sending
+    pendingApplicationData = null;
   }
+  return true; // Keep the message channel open for async response
 });
 
 // On extension installation, set up initial storage
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     console.log("Job Hunt Assist extension installed");
-    // Any initial setup code can go here
+    // Set default options
+    chrome.storage.sync.set({
+      options: {
+        apiUrl: "http://localhost:3000/api",
+        trackApplicationsInApp: true,
+        autoExtractOnPageLoad: true,
+        aiEnhancementEnabled: false,
+      },
+    });
   }
 });
 
 // Handle tab updates, especially for state transfer
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Check if this is the jobs/new page loading
-  if (
-    changeInfo.status === "complete" &&
-    tab.url.includes("localhost:3000/jobs/new")
-  ) {
-    // Get pending job application data
-    chrome.storage.local.get(["pendingJobApplication"], (result) => {
-      if (result.pendingJobApplication) {
-        // If we have pending job data, inject content script to handle state
-        chrome.scripting
-          .executeScript({
-            target: { tabId: tabId },
-            function: injectStateToReactApp,
-            args: [result.pendingJobApplication],
-          })
-          .then(() => {
-            // Clear pending job data after state is injected
-            chrome.storage.local.remove("pendingJobApplication");
-          })
-          .catch((err) => {
-            console.error("Error injecting script:", err);
-          });
-      }
-    });
+  // Only run when page load is complete
+  if (changeInfo.status === "complete") {
+    // Check if this is the jobs/new page loading
+    if (
+      tab.url.includes("localhost:3000/jobs/new") ||
+      tab.url.includes("your-job-tracker-app.com/jobs/new")
+    ) {
+      // Retrieve pending job application data
+      chrome.storage.local.get(["pendingJobApplication"], (result) => {
+        if (result.pendingJobApplication) {
+          console.log("Found pending job application data for tab:", tabId);
+
+          // Inject the data transfer script
+          chrome.scripting
+            .executeScript({
+              target: { tabId: tabId },
+              function: injectStateToReactApp,
+              args: [result.pendingJobApplication],
+            })
+            .then(() => {
+              console.log("Successfully injected job data script");
+              // Clear the pending data after successful injection
+              chrome.storage.local.remove("pendingJobApplication");
+            })
+            .catch((err) => {
+              console.error("Error injecting state script:", err);
+            });
+        }
+      });
+    }
+
+    // If auto-extract is enabled, inject content script on job posting pages
+    if (isJobPostingPage(tab.url)) {
+      chrome.storage.sync.get("options", (result) => {
+        const options = result.options || {};
+        if (options.autoExtractOnPageLoad) {
+          chrome.scripting
+            .executeScript({
+              target: { tabId: tabId },
+              files: ["content.js"],
+            })
+            .then(() => {
+              console.log("Auto-injected content script on job page");
+            })
+            .catch((err) => {
+              console.log("Failed to inject content script:", err);
+            });
+        }
+      });
+    }
   }
 });
+
+// Function to determine if a URL is likely a job posting
+function isJobPostingPage(url) {
+  // Common job board URL patterns
+  const jobBoardPatterns = [
+    /linkedin\.com\/jobs/i,
+    /indeed\.com\/viewjob/i,
+    /glassdoor\.com\/job/i,
+    /ziprecruiter\.com\/jobs/i,
+    /monster\.com\/job/i,
+    /careers\./i,
+    /jobs\./i,
+    /\/jobs?\//i,
+    /\/careers?\//i,
+    /\/job\-details/i,
+    /\/posting/i,
+  ];
+
+  return jobBoardPatterns.some((pattern) => pattern.test(url));
+}
 
 // Function to inject state into the React app
 function injectStateToReactApp(jobData) {
@@ -66,7 +132,7 @@ function injectStateToReactApp(jobData) {
   );
 
   // Add visual feedback to let the user know the data was transferred
-  showNotification("Job data transferred to form successfully!");
+  showNotification("Job data transferred successfully!");
 }
 
 // Function to show a notification to the user
