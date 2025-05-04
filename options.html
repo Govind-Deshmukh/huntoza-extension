@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Job Hunt Assist - Options</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+    />
+  </head>
+  <body class="bg-gray-100 font-sans">
+    <div class="container mx-auto py-8 px-4 max-w-3xl">
+      <header class="mb-8">
+        <h1 class="text-2xl font-bold text-blue-700 mb-2">
+          Job Hunt Assist Settings
+        </h1>
+        <p class="text-gray-600">
+          Configure how the extension extracts and processes job data
+        </p>
+      </header>
+
+      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">
+          Job Tracker App Integration
+        </h2>
+
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2"
+            >Job Tracker App API URL</label
+          >
+          <div class="mt-1 flex rounded-md shadow-sm">
+            <input
+              type="text"
+              id="apiUrl"
+              name="apiUrl"
+              class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300"
+              placeholder="https://your-job-tracker-app.com/api"
+            />
+          </div>
+          <p class="mt-1 text-sm text-gray-500">
+            Enter the URL of your Job Hunt Tracker API
+          </p>
+        </div>
+
+        <div class="mb-6">
+          <div class="flex items-start mb-4">
+            <div class="flex items-center h-5">
+              <input
+                id="trackApplicationsInApp"
+                name="trackApplicationsInApp"
+                type="checkbox"
+                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+            </div>
+            <div class="ml-3 text-sm">
+              <label
+                for="trackApplicationsInApp"
+                class="font-medium text-gray-700"
+                >Track applications in Job Hunt Tracker app</label
+              >
+              <p class="text-gray-500">
+                Automatically open the job application form in your app when you
+                click "Create Application"
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">
+          Extraction Settings
+        </h2>
+
+        <div class="mb-6">
+          <div class="flex items-start mb-4">
+            <div class="flex items-center h-5">
+              <input
+                id="autoExtractOnPageLoad"
+                name="autoExtractOnPageLoad"
+                type="checkbox"
+                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+            </div>
+            <div class="ml-3 text-sm">
+              <label
+                for="autoExtractOnPageLoad"
+                class="font-medium text-gray-700"
+                >Auto-extract job details</label
+              >
+              <p class="text-gray-500">
+                Automatically scan for job details when you open a job posting
+                page
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">AI Enhancement</h2>
+
+        <div class="mb-6">
+          <div class="flex items-start mb-4">
+            <div class="flex items-center h-5">
+              <input
+                id="aiEnhancementEnabled"
+                name="aiEnhancementEnabled"
+                type="checkbox"
+                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+            </div>
+            <div class="ml-3 text-sm">
+              <label
+                for="aiEnhancementEnabled"
+                class="font-medium text-gray-700"
+                >Enable AI enhancement</label
+              >
+              <p class="text-gray-500">
+                Use AI to improve extracted job details and fill in missing
+                information
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="aiSettingsContainer"
+          class="pl-8 mb-4 border-l-2 border-gray-200"
+        >
+          <div class="mb-4">
+            <div class="flex items-center justify-between">
+              <label class="block text-sm font-medium text-gray-700"
+                >Available AI credits</label
+              >
+              <span
+                id="aiCredits"
+                class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                >--</span
+              >
+            </div>
+            <div class="mt-1">
+              <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  id="aiCreditsBar"
+                  class="bg-blue-600 h-2.5 rounded-full"
+                  style="width: 45%"
+                ></div>
+              </div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              Each AI enhancement uses 1 credit. Credits renew monthly.
+            </p>
+          </div>
+
+          <div class="mb-4">
+            <button
+              id="buyCreditsBtn"
+              class="inline-flex items-center px-3 py-2 border border-blue-700 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Buy more credits
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button
+          id="saveOptions"
+          class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Save Settings
+        </button>
+      </div>
+
+      <div id="statusMessage" class="mt-4 hidden p-4 rounded-md">
+        <!-- Status message will be shown here -->
+      </div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
