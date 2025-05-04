@@ -35,9 +35,12 @@ function extractCompany() {
     ".employer-name",
     '[data-testid="company-name"]',
     ".jobs-unified-top-card__company-name", // LinkedIn
-    ".employer-info-card h3", // Indeed
+    ".jobsearch-InlineCompanyRating div", // Indeed
     ".jobs-company", // Glassdoor
     ".at-section-text-company", // ZipRecruiter
+    ".css-1saic7f", // Greenhouse
+    ".content-header__company-name", // Lever
+    ".employer-name", // Monster
   ];
 
   // Try to find company name using common selectors
@@ -74,6 +77,9 @@ function extractPosition() {
     ".jobs-unified-top-card__job-title", // LinkedIn
     ".jobsearch-JobInfoHeader-title", // Indeed
     ".job-title-header", // Glassdoor
+    ".at-jobs-header-title", // ZipRecruiter
+    ".app-title", // Greenhouse
+    ".posting-headline h2", // Lever
     "h1", // General fallback
   ];
 
@@ -116,6 +122,8 @@ function extractLocation() {
     ".jobsearch-JobInfoHeader-subtitle .jobsearch-JobInfoHeader-locationText", // Indeed
     ".location", // Glassdoor
     ".at-location", // ZipRecruiter
+    ".location", // Greenhouse
+    ".posting-categories .location", // Lever
   ];
 
   // Try to find location using common selectors
@@ -170,7 +178,7 @@ function extractSalary() {
   const salary = {
     min: 0,
     max: 0,
-    currency: "INR", // Default currency
+    currency: "INR", // Default currency for your app
   };
 
   // Try to find salary information on the page
@@ -223,6 +231,8 @@ function extractDescription() {
     "#jobDescriptionText", // Indeed
     "#JobDescriptionContainer", // Glassdoor
     ".jobDescriptionSection", // ZipRecruiter
+    ".posting-page", // Greenhouse
+    ".posting-detail-body", // Lever
   ];
 
   // Try to find description using common selectors
@@ -252,7 +262,7 @@ window.addEventListener("load", () => {
   // Wait a bit to make sure dynamic content is loaded
   setTimeout(() => {
     extractJobData();
-  }, 1000);
+  }, 1500);
 });
 
 // Listen for messages from the popup or background script

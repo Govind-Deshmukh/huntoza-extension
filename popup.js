@@ -1,5 +1,5 @@
 /**
- * Job Hunt Assist - Popup Script
+ * Job Hunt Assist - Popup Script (Updated for state passing)
  *
  * This script controls the popup UI and manages communication with
  * the content script and background script.
@@ -10,10 +10,7 @@ const loadingState = document.getElementById("loading-state");
 const errorState = document.getElementById("error-state");
 const jobDataForm = document.getElementById("job-data-form");
 const refreshBtn = document.getElementById("refresh-btn");
-const settingsBtn = document.getElementById("settings-btn");
-const copyBtn = document.getElementById("copy-btn");
 const createBtn = document.getElementById("create-btn");
-const enhanceWithAI = document.getElementById("enhanceWithAI");
 const connectionStatus = document.getElementById("connection-status");
 
 // Form fields
@@ -26,6 +23,7 @@ const salaryMinInput = document.getElementById("salaryMin");
 const salaryMaxInput = document.getElementById("salaryMax");
 const jobDescriptionPreview = document.getElementById("jobDescriptionPreview");
 const jobUrlInput = document.getElementById("jobUrl");
+const prioritySelect = document.getElementById("priority");
 
 // Current job data
 let currentJobData = null;
@@ -144,6 +142,7 @@ function getJobDataFromForm() {
     },
     jobDescription: currentJobData?.jobDescription || "",
     jobUrl: jobUrlInput.value,
+    priority: prioritySelect.value,
   };
 }
 
@@ -169,45 +168,11 @@ function showErrorState() {
 
 // Check connection to the job tracker app
 function checkAppConnection() {
-  // For now, we'll just fake a successful connection
-  // In a real implementation, you would make an API call to your backend
-  // to verify that the user is authenticated
-
-  // Simulating a successful connection
+  // For development, we'll always show connected status
   connectionStatus.innerHTML = `
     <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-    Connected to Job Hunt Tracker
+    Connected to Job Hunt Tracker (localhost)
   `;
-
-  // You could implement real connection checking here:
-  /*
-  fetch('https://your-job-tracker-app.com/api/auth/check', {
-    method: 'GET',
-    credentials: 'include'
-  })
-  .then(response => {
-    if (response.ok) {
-      // User is authenticated
-      connectionStatus.innerHTML = `
-        <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-        Connected to Job Hunt Tracker
-      `;
-    } else {
-      // User is not authenticated
-      connectionStatus.innerHTML = `
-        <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-        Not connected - <a href="https://your-job-tracker-app.com/login" target="_blank" class="text-blue-600 hover:underline">Login</a>
-      `;
-    }
-  })
-  .catch(error => {
-    // Connection error
-    connectionStatus.innerHTML = `
-      <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-      Connection error - Check your network
-    `;
-  });
-  */
 }
 
 // Event Listeners
@@ -227,108 +192,72 @@ refreshBtn.addEventListener("click", async () => {
   }
 });
 
-// Settings button - Open settings page
-settingsBtn.addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
-});
-
-// Copy button - Copy job data to clipboard
-copyBtn.addEventListener("click", () => {
-  const jobData = getJobDataFromForm();
-
-  // Format the data for clipboard
-  const textToCopy = `
-    Company: ${jobData.company}
-    Position: ${jobData.position}
-    Location: ${jobData.jobLocation}
-    Job Type: ${jobData.jobType}
-    Salary: ${jobData.salary.min}-${jobData.salary.max} ${jobData.salary.currency}
-    URL: ${jobData.jobUrl}
-  `.trim();
-
-  // Copy to clipboard
-  navigator.clipboard
-    .writeText(textToCopy)
-    .then(() => {
-      // Show success message
-      copyBtn.innerText = "Copied!";
-      setTimeout(() => {
-        copyBtn.innerText = "Copy Details";
-      }, 2000);
-    })
-    .catch((err) => {
-      console.error("Failed to copy: ", err);
-    });
-});
-
 // Create application button - Open job form in the app with prefilled data
 createBtn.addEventListener("click", async () => {
   const jobData = getJobDataFromForm();
 
-  // If AI enhancement is requested
-  if (enhanceWithAI.checked) {
-    // Show loading state
-    createBtn.innerHTML = `
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Enhancing with AI...
-    `;
+  // Change button to loading state
+  createBtn.innerHTML = `
+    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    Sending to Job Tracker...
+  `;
 
-    try {
-      // Send job data to background script for AI enhancement
-      chrome.runtime.sendMessage(
-        { action: "enhanceWithAI", data: jobData },
-        (enhancedData) => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "Error enhancing job data:",
-              chrome.runtime.lastError
-            );
-            createApplication(jobData);
-          } else {
-            createApplication(enhancedData || jobData);
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error enhancing job data:", error);
-      createApplication(jobData);
-    }
-  } else {
+  try {
     // Create application with current data
     createApplication(jobData);
+  } catch (error) {
+    console.error("Error sending job data:", error);
+
+    // Reset button
+    createBtn.innerHTML = "Send to Job Tracker";
+
+    // Show error notification
+    errorState.classList.remove("hidden");
+    errorState.textContent = "Failed to send job data. Please try again.";
   }
 });
 
-// Create application in the job tracker app
+// Create application in the job tracker app by redirecting to the job form page with state
 function createApplication(jobData) {
-  // Save job data to storage (to be accessed by background script)
+  // Save job data to storage (to be accessed by the background script)
   chrome.storage.local.set({ pendingJobApplication: jobData });
 
-  // Construct the URL with query parameters for the job form
-  const appUrl = new URL("https://your-job-tracker-app.com/jobs/new");
+  // Construct the URL for the job form
+  const appUrl = "http://localhost:3000/jobs/new";
 
-  // Add job data as query parameters
-  appUrl.searchParams.append("company", jobData.company);
-  appUrl.searchParams.append("position", jobData.position);
-  appUrl.searchParams.append("jobLocation", jobData.jobLocation);
-  appUrl.searchParams.append("jobType", jobData.jobType);
-  appUrl.searchParams.append("salaryMin", jobData.salary.min);
-  appUrl.searchParams.append("salaryMax", jobData.salary.max);
-  appUrl.searchParams.append("salaryCurrency", jobData.salary.currency);
-  appUrl.searchParams.append("jobUrl", jobData.jobUrl);
+  // We're going to use a content script to inject our state
+  chrome.tabs.create({ url: appUrl }, (tab) => {
+    // Wait for the new tab to load, then inject the content script to handle state transfer
+    chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+      if (tabId === tab.id && info.status === "complete") {
+        // Remove this listener
+        chrome.tabs.onUpdated.removeListener(listener);
 
-  // Open the job form in a new tab
-  chrome.tabs.create({ url: appUrl.toString() });
+        // Execute script to inject the state
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          function: injectStateToReactApp,
+          args: [jobData],
+        });
+      }
+    });
+  });
 }
 
-// Listen for form input changes to update stored job data
-document.querySelectorAll("input, select").forEach((element) => {
-  element.addEventListener("change", () => {
-    // Update stored job data with form values
-    const updatedJobData = getJobDataFromForm();
-    chrome.storage.local.set({ jobData: updatedJobData });
-  });
-});
+// This function will be executed in the context of the job form page to inject state
+function injectStateToReactApp(jobData) {
+  // Store job data in localStorage so React can access it
+  localStorage.setItem("pendingJobData", JSON.stringify(jobData));
+
+  // Dispatch a custom event to notify React the data is available
+  window.dispatchEvent(
+    new CustomEvent("jobDataAvailable", {
+      detail: { source: "chromeExtension" },
+    })
+  );
+
+  console.log("Job data stored in localStorage for React app");
+}
