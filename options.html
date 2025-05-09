@@ -1,45 +1,92 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Job Hunt Assist - Options</title>
+    <title>PursuitPal - Options</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
     />
+    <style>
+      :root {
+        --primary-color: #552dec;
+        --primary-light: #6b44f0;
+        --primary-dark: #4425be;
+      }
+
+      .text-primary {
+        color: var(--primary-color);
+      }
+
+      .bg-primary {
+        background-color: var(--primary-color);
+      }
+
+      .hover\:bg-primary-light:hover {
+        background-color: var(--primary-light);
+      }
+
+      .focus\:ring-primary:focus {
+        --tw-ring-color: var(--primary-color);
+      }
+
+      .focus\:border-primary:focus {
+        border-color: var(--primary-color);
+      }
+
+      .border-primary {
+        border-color: var(--primary-color);
+      }
+    </style>
   </head>
   <body class="bg-gray-100 font-sans">
     <div class="container mx-auto py-8 px-4 max-w-3xl">
       <header class="mb-8">
-        <h1 class="text-2xl font-bold text-blue-700 mb-2">
-          Job Hunt Assist Settings
-        </h1>
+        <div class="flex items-center mb-2">
+          <div class="mr-2">
+            <!-- Logo placeholder - replace with actual logo -->
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 4.2c2.337 0 4.2 1.863 4.2 4.2s-1.863 4.2-4.2 4.2-4.2-1.863-4.2-4.2 1.863-4.2 4.2-4.2zm0 19.74c-3.5 0-6.65-1.75-8.4-4.55 0-2.8 5.6-4.34 8.4-4.34s8.4 1.54 8.4 4.34c-1.75 2.8-4.9 4.55-8.4 4.55z"
+                fill="#552dec"
+              />
+            </svg>
+          </div>
+          <h1 class="text-2xl font-bold text-primary">PursuitPal Settings</h1>
+        </div>
         <p class="text-gray-600">
-          Configure how the extension extracts and processes job data
+          Configure how the extension extracts and processes job and contact
+          data
         </p>
       </header>
 
       <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">
-          Job Tracker App Integration
+          PursuitPal App Integration
         </h2>
 
         <div class="mb-6">
           <label class="block text-sm font-medium text-gray-700 mb-2"
-            >Job Tracker App API URL</label
+            >PursuitPal App API URL</label
           >
           <div class="mt-1 flex rounded-md shadow-sm">
             <input
               type="text"
               id="apiUrl"
               name="apiUrl"
-              class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300"
-              placeholder="https://your-job-tracker-app.com/api"
+              class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md focus:ring-primary focus:border-primary sm:text-sm border-gray-300"
+              placeholder="https://your-pursuitpal-app.com/api"
             />
           </div>
           <p class="mt-1 text-sm text-gray-500">
-            Enter the URL of your Job Hunt Tracker API
+            Enter the URL of your PursuitPal API
           </p>
         </div>
 
@@ -50,14 +97,14 @@
                 id="trackApplicationsInApp"
                 name="trackApplicationsInApp"
                 type="checkbox"
-                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
               />
             </div>
             <div class="ml-3 text-sm">
               <label
                 for="trackApplicationsInApp"
                 class="font-medium text-gray-700"
-                >Track applications in Job Hunt Tracker app</label
+                >Track applications in PursuitPal app</label
               >
               <p class="text-gray-500">
                 Automatically open the job application form in your app when you
@@ -80,7 +127,7 @@
                 id="autoExtractOnPageLoad"
                 name="autoExtractOnPageLoad"
                 type="checkbox"
-                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
               />
             </div>
             <div class="ml-3 text-sm">
@@ -108,7 +155,7 @@
                 id="aiEnhancementEnabled"
                 name="aiEnhancementEnabled"
                 type="checkbox"
-                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
               />
             </div>
             <div class="ml-3 text-sm">
@@ -136,7 +183,7 @@
               >
               <span
                 id="aiCredits"
-                class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                class="inline-block bg-primary bg-opacity-20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full"
                 >--</span
               >
             </div>
@@ -144,7 +191,7 @@
               <div class="w-full bg-gray-200 rounded-full h-2.5">
                 <div
                   id="aiCreditsBar"
-                  class="bg-blue-600 h-2.5 rounded-full"
+                  class="bg-primary h-2.5 rounded-full"
                   style="width: 45%"
                 ></div>
               </div>
@@ -157,7 +204,7 @@
           <div class="mb-4">
             <button
               id="buyCreditsBtn"
-              class="inline-flex items-center px-3 py-2 border border-blue-700 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              class="inline-flex items-center px-3 py-2 border border-primary shadow-sm text-sm leading-4 font-medium rounded-md text-primary bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
             >
               Buy more credits
             </button>
@@ -168,7 +215,7 @@
       <div class="flex justify-end">
         <button
           id="saveOptions"
-          class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
         >
           Save Settings
         </button>

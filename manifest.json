@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Job Hunt Assist",
+  "name": "PursuitPal",
   "version": "1.0",
-  "description": "Extract job details from job postings to auto-fill your Job Hunt Tracker application",
+  "description": "Track your job hunt with secure login - Extract job and contact details from job postings and LinkedIn",
   "permissions": ["activeTab", "storage", "scripting", "tabs"],
   "host_permissions": ["<all_urls>", "http://localhost:3000/*"],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "login.html",
     "default_icon": {
       "16": "images/icon.png",
       "48": "images/icon.png",
@@ -26,5 +26,12 @@
     "16": "images/icon.png",
     "48": "images/icon.png",
     "128": "images/icon.png"
-  }
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["auth-service.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

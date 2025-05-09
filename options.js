@@ -1,5 +1,5 @@
 /**
- * Job Hunt Assist - Options Script
+ * PursuitPal - Options Script
  *
  * This script manages the options page functionality:
  * - Loads saved options
@@ -23,10 +23,10 @@ const statusMessage = document.getElementById("statusMessage");
 
 // Default options
 const defaultOptions = {
-  apiUrl: "https://your-job-tracker-app.com/api",
+  apiUrl: "http://localhost:3000/api",
   trackApplicationsInApp: true,
   autoExtractOnPageLoad: true,
-  aiEnhancementEnabled: true,
+  aiEnhancementEnabled: false,
 };
 
 // Initialize the options page
@@ -106,7 +106,7 @@ function saveOptions() {
 function buyCredits() {
   // In a real implementation, you would redirect to your payment page
   // For demo, we'll just open a mock URL
-  chrome.tabs.create({ url: "https://your-job-tracker-app.com/buy-credits" });
+  chrome.tabs.create({ url: "http://localhost:3000/buy-credits" });
 }
 
 // Show status message

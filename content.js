@@ -1,5 +1,5 @@
 /**
- * Job Hunt Assist - Enhanced Content Script
+ * PursuitPal - Enhanced Content Script
  *
  * This script runs on any web page and attempts to extract job posting details.
  * It has specialized extractors for common job platforms like LinkedIn, Indeed, etc.
@@ -82,36 +82,88 @@ function extractLinkedInJobData() {
     jobDescription: "",
   };
 
-  // Job Title - using the specific LinkedIn class
-  const jobTitleElement = document.querySelector(
-    ".t-24.job-details-jobs-unified-top-card__job-title h1"
-  );
+  // Job Title - using the updated LinkedIn selectors
+  // First, try the new structure
+  const jobTitleElement = document.querySelector("h1.t-24.t-bold.inline");
   if (jobTitleElement) {
-    jobData.position = jobTitleElement.textContent.trim();
+    // Check if there's a link inside the h1
+    const titleLink = jobTitleElement.querySelector("a");
+    jobData.position = titleLink
+      ? titleLink.textContent.trim()
+      : jobTitleElement.textContent.trim();
   }
 
-  // Company Name
-  const companyElement = document.querySelector(
-    ".jobs-unified-top-card__company-name"
-  );
-  if (companyElement) {
-    jobData.company = companyElement.textContent.trim();
+  // Fallbacks for other LinkedIn title structures
+  if (!jobData.position) {
+    const altTitleSelectors = [
+      ".job-details-jobs-unified-top-card__job-title h1",
+      ".topcard__title",
+      ".jobs-unified-top-card__job-title",
+      ".jobs-details-top-card__job-title",
+    ];
+
+    for (const selector of altTitleSelectors) {
+      const element = document.querySelector(selector);
+      if (element) {
+        jobData.position = element.textContent.trim();
+        break;
+      }
+    }
   }
 
-  // Job Location - using the specific LinkedIn class
-  const locationElement = document.querySelector(
-    ".job-details-jobs-unified-top-card__primary-description-container .tvm__text"
-  );
-  if (locationElement) {
-    jobData.jobLocation = locationElement.textContent.trim();
+  // Company Name - updated selectors for LinkedIn
+  const companySelectors = [
+    ".jobs-unified-top-card__company-name a",
+    "a[href*='/company/']",
+    ".jobs-unified-top-card__company-name",
+    ".topcard__org-name-link",
+    ".jobs-details-top-card__company-url",
+  ];
+
+  for (const selector of companySelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      jobData.company = element.textContent.trim();
+      break;
+    }
+  }
+
+  // Job Location - updated selectors with new class paths
+  const locationSelectors = [
+    ".tvm__text:first-of-type",
+    "span.topcard__flavor--bullet",
+    ".jobs-unified-top-card__bullet",
+    ".jobs-unified-top-card__workplace-type",
+    ".job-details-jobs-unified-top-card__primary-description-container .tvm__text",
+  ];
+
+  for (const selector of locationSelectors) {
+    const elements = document.querySelectorAll(selector);
+    for (const element of elements) {
+      const text = element.textContent.trim();
+      // Check if text contains location patterns and doesn't contain timing information
+      if (text && !text.match(/ago|week|day|hour|minute|second|apply/i)) {
+        jobData.jobLocation = text.split("·")[0].trim();
+        break;
+      }
+    }
+    if (jobData.jobLocation) break;
   }
 
   // Job Description - using the specific LinkedIn class
-  const descriptionElement = document.querySelector(
-    ".jobs-description-content__text--stretch"
-  );
-  if (descriptionElement) {
-    jobData.jobDescription = descriptionElement.textContent.trim();
+  const descriptionSelectors = [
+    ".jobs-description__content .jobs-description-content__text--stretch",
+    "#job-details",
+    ".description__text",
+    ".jobs-box__html-content",
+  ];
+
+  for (const selector of descriptionSelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      jobData.jobDescription = element.textContent.trim();
+      break;
+    }
   }
 
   // Job Type - extract from description text
@@ -128,6 +180,8 @@ function extractLinkedInJobData() {
       jobData.jobDescription.match(/\bremote\b|\bwork from home\b|\bwfh\b/i)
     ) {
       jobData.jobType = "remote";
+    } else if (jobData.jobDescription.match(/\bhybrid\b/i)) {
+      jobData.jobType = "hybrid";
     }
   }
 
@@ -624,6 +678,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "extractJobData") {
     const jobData = extractJobData();
     sendResponse(jobData);
+  } else if (request.action === "extractContactData") {
+    // Future support for LinkedIn contact extraction
+    // This is a placeholder for future functionality
+    const contactData = { name: "Not implemented yet" };
+    sendResponse(contactData);
   }
   return true; // Keep the message channel open for async response
 });

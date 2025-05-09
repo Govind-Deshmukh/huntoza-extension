@@ -1,9 +1,9 @@
 /**
- * Job Hunt Assist - Improved Popup Script
+ * PursuitPal - Popup Script with Authentication
  *
  * This script controls the popup UI and manages communication with
- * the content script and background script. It now includes improved
- * handling of job data and better integration with the React app.
+ * the content script and background script. It includes authentication
+ * checks and secure API interactions.
  */
 
 // DOM Elements
@@ -12,7 +12,16 @@ const errorState = document.getElementById("error-state");
 const jobDataForm = document.getElementById("job-data-form");
 const refreshBtn = document.getElementById("refresh-btn");
 const createBtn = document.getElementById("create-btn");
+const settingsBtn = document.getElementById("settings-btn");
+const logoutBtn = document.getElementById("logout-btn");
+const userDisplay = document.getElementById("user-display");
 const connectionStatus = document.getElementById("connection-status");
+
+// Tab elements
+const jobsTab = document.getElementById("jobs-tab");
+const contactsTab = document.getElementById("contacts-tab");
+const jobTabContent = document.getElementById("job-tab-content");
+const contactsTabContent = document.getElementById("contacts-tab-content");
 
 // Form fields
 const companyInput = document.getElementById("company");
@@ -28,42 +37,230 @@ const prioritySelect = document.getElementById("priority");
 
 // Current job data
 let currentJobData = null;
+// Current user data
+let currentUser = null;
+
+// API Base URL
+const API_BASE_URL = "http://localhost:3000/api/v1";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
-  showLoadingState();
-
+  // Check authentication first
   try {
-    // Check connection to the app
-    checkAppConnection();
+    const isAuthenticated = await checkAuthentication();
 
-    // Get the current tab
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
+    if (!isAuthenticated) {
+      // Not authenticated, redirect to login
+      window.location.href = "login.html";
+      return;
+    }
 
-    // Try to get cached job data first
-    chrome.storage.local.get(["jobData"], async (result) => {
-      if (result.jobData && result.jobData.jobUrl === tab.url) {
-        // We have cached data for this URL
-        updateUIWithJobData(result.jobData);
-        hideLoadingState();
-      } else {
-        // No cached data, request extraction from content script
-        try {
-          await extractJobDataFromPage(tab);
-        } catch (error) {
-          console.error("Error extracting job data:", error);
-          showErrorState();
+    // Load and display user info
+    await loadUserInfo();
+
+    // Set up tab switching
+    setupTabs();
+
+    showLoadingState();
+
+    try {
+      // Check connection to the app
+      checkAppConnection();
+
+      // Get the current tab
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      // Try to get cached job data first
+      chrome.storage.local.get(["jobData"], async (result) => {
+        if (result.jobData && result.jobData.jobUrl === tab.url) {
+          // We have cached data for this URL
+          updateUIWithJobData(result.jobData);
+          hideLoadingState();
+        } else {
+          // No cached data, request extraction from content script
+          try {
+            await extractJobDataFromPage(tab);
+          } catch (error) {
+            console.error("Error extracting job data:", error);
+            showErrorState();
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error initializing popup:", error);
+      showErrorState();
+    }
   } catch (error) {
-    console.error("Error initializing popup:", error);
-    showErrorState();
+    console.error("Authentication error:", error);
+    // Redirect to login on any auth error
+    window.location.href = "login.html";
   }
 });
+
+// Check if user is authenticated
+async function checkAuthentication() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: "checkAuth" }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve(response.isAuthenticated);
+    });
+  });
+}
+
+// Load user information
+async function loadUserInfo() {
+  try {
+    // Get user data from storage
+    const userData = await chrome.storage.local.get(["user"]);
+
+    if (userData.user) {
+      currentUser = userData.user;
+
+      // Update UI with user info
+      if (userDisplay) {
+        userDisplay.textContent = userData.user.name || userData.user.email;
+      }
+    }
+  } catch (error) {
+    console.error("Error loading user info:", error);
+  }
+}
+
+// Handle logout
+async function handleLogout() {
+  try {
+    // Show loading state
+    document.body.classList.add("cursor-wait");
+    if (logoutBtn) {
+      logoutBtn.disabled = true;
+    }
+
+    // Call background script to handle logout
+    await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: "logout" }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+          return;
+        }
+
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || "Logout failed"));
+        }
+      });
+    });
+
+    // Redirect to login page
+    window.location.href = "login.html";
+  } catch (error) {
+    console.error("Logout error:", error);
+    alert("Failed to logout. Please try again.");
+
+    // Reset UI
+    document.body.classList.remove("cursor-wait");
+    if (logoutBtn) {
+      logoutBtn.disabled = false;
+    }
+  }
+}
+
+// Make an authenticated API request
+async function fetchWithAuth(endpoint, options = {}) {
+  try {
+    // First check if we're authenticated
+    const isAuthenticated = await checkAuthentication();
+
+    if (!isAuthenticated) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current token
+    const authData = await chrome.storage.local.get(["token"]);
+
+    if (!authData.token) {
+      throw new Error("No auth token available");
+    }
+
+    // Set up headers with auth token
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authData.token}`,
+      ...options.headers,
+    };
+
+    // Make the request
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    // Handle 401 Unauthorized
+    if (response.status === 401) {
+      // Token might be expired, redirect to login
+      window.location.href = "login.html";
+      throw new Error("Session expired");
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "API request failed");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("API request error:", error);
+    throw error;
+  }
+}
+
+// Set up tab switching functionality
+function setupTabs() {
+  if (!jobsTab || !contactsTab) {
+    return; // Tabs not found
+  }
+
+  jobsTab.addEventListener("click", () => {
+    // Update tab buttons
+    jobsTab.classList.add("border-b-2", "border-primary", "text-primary");
+    jobsTab.classList.remove("text-gray-500");
+    contactsTab.classList.remove(
+      "border-b-2",
+      "border-primary",
+      "text-primary"
+    );
+    contactsTab.classList.add("text-gray-500");
+
+    // Show/hide content
+    jobTabContent.classList.remove("hidden");
+    contactsTabContent.classList.add("hidden");
+  });
+
+  contactsTab.addEventListener("click", () => {
+    // Update tab buttons
+    contactsTab.classList.add("border-b-2", "border-primary", "text-primary");
+    contactsTab.classList.remove("text-gray-500");
+    jobsTab.classList.remove("border-b-2", "border-primary", "text-primary");
+    jobsTab.classList.add("text-gray-500");
+
+    // Show/hide content
+    contactsTabContent.classList.remove("hidden");
+    jobTabContent.classList.add("hidden");
+  });
+
+  // Set up logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", handleLogout);
+  }
+}
 
 // Extract job data from the current page
 async function extractJobDataFromPage(tab) {
@@ -181,7 +378,7 @@ function showErrorState() {
 // Check connection to the job tracker app
 function checkAppConnection() {
   // Check if we can connect to the application
-  fetch("http://localhost:3000/api/health", {
+  fetch(`${API_BASE_URL}/health`, {
     method: "GET",
     mode: "no-cors", // Use no-cors mode since we're just checking connectivity
   })
@@ -189,68 +386,79 @@ function checkAppConnection() {
       // If fetch succeeds, we can connect
       connectionStatus.innerHTML = `
       <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-      Connected to Job Hunt Tracker
+      <span>Connected to PursuitPal Tracker</span>
     `;
     })
     .catch(() => {
       // If fetch fails, we can't connect
       connectionStatus.innerHTML = `
       <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-      Not connected to Job Hunt Tracker
+      <span>Not connected to PursuitPal Tracker</span>
     `;
     });
 }
 
 // Event Listeners
 
+// Settings button - Open options page
+if (settingsBtn) {
+  settingsBtn.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+}
+
 // Refresh button - Fetch job data again
-refreshBtn.addEventListener("click", async () => {
-  showLoadingState();
-  try {
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    await extractJobDataFromPage(tab);
-  } catch (error) {
-    console.error("Error refreshing job data:", error);
-    showErrorState();
-  }
-});
+if (refreshBtn) {
+  refreshBtn.addEventListener("click", async () => {
+    showLoadingState();
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      await extractJobDataFromPage(tab);
+    } catch (error) {
+      console.error("Error refreshing job data:", error);
+      showErrorState();
+    }
+  });
+}
 
 // Create application button - Open job form in the app with prefilled data
-createBtn.addEventListener("click", async () => {
-  const jobData = getJobDataFromForm();
+if (createBtn) {
+  createBtn.addEventListener("click", async () => {
+    const jobData = getJobDataFromForm();
 
-  // Change button to loading state
-  createBtn.innerHTML = `
-    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    Sending to Job Tracker...
-  `;
+    // Change button to loading state
+    createBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Sending to PursuitPal...
+    `;
 
-  try {
-    // Save job data to storage (to be accessed by the background script)
-    chrome.storage.local.set({ pendingJobApplication: jobData });
+    try {
+      // Save job data to storage (to be accessed by the background script)
+      chrome.storage.local.set({ pendingJobApplication: jobData });
 
-    // Construct the URL for the job form
-    const appUrl = "http://localhost:3000/jobs/new";
+      // Construct the URL for the job form
+      const appUrl = `${API_BASE_URL.replace("/api/v1", "")}/jobs/new`;
 
-    // Create a new tab with the job form
-    chrome.tabs.create({ url: appUrl }, (tab) => {
-      // We won't need to do anything else here as the background script will handle
-      // injecting the data after the new tab loads (see background.js)
-    });
-  } catch (error) {
-    console.error("Error sending job data:", error);
+      // Create a new tab with the job form
+      chrome.tabs.create({ url: appUrl }, (tab) => {
+        // We won't need to do anything else here as the background script will handle
+        // injecting the data after the new tab loads (see background.js)
+      });
+    } catch (error) {
+      console.error("Error sending job data:", error);
 
-    // Reset button
-    createBtn.innerHTML = "Send to Job Tracker";
+      // Reset button
+      createBtn.innerHTML = "Send to PursuitPal Tracker";
 
-    // Show error notification
-    errorState.classList.remove("hidden");
-    errorState.textContent = "Failed to send job data. Please try again.";
-  }
-});
+      // Show error notification
+      errorState.classList.remove("hidden");
+      errorState.textContent = "Failed to send job data. Please try again.";
+    }
+  });
+}
