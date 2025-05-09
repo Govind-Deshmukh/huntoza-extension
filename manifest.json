@@ -3,7 +3,7 @@
   "name": "PursuitPal",
   "version": "1.0",
   "description": "Track your job hunt with secure login - Extract job and contact details from job postings and LinkedIn",
-  "permissions": ["activeTab", "storage", "scripting", "tabs"],
+  "permissions": ["activeTab", "storage", "scripting", "tabs", "alarms"],
   "host_permissions": ["<all_urls>", "http://localhost:3000/*"],
   "action": {
     "default_popup": "login.html",

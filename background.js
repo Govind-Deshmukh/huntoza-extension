@@ -65,6 +65,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: error.message });
       });
     return true; // Keep the message channel open for async response
+  } else if (request.action === "getCurrentUser") {
+    // Return current user data
+    authService
+      .getCurrentUser()
+      .then((user) => {
+        sendResponse({ success: true, user });
+      })
+      .catch((error) => {
+        console.error("Error getting user data:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep the message channel open for async response
   }
   return true; // Keep the message channel open for async response
 });
@@ -85,8 +97,6 @@ chrome.runtime.onInstalled.addListener((details) => {
     // Set default options
     chrome.storage.sync.set({
       options: {
-        apiUrl: apiUrl,
-        trackApplicationsInApp: true,
         autoExtractOnPageLoad: true,
         aiEnhancementEnabled: aiEnhancementEnabled,
       },
@@ -95,11 +105,20 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // Handle browser action click (icon click)
-chrome.action.onClicked.addListener(() => {
-  // This won't run if popup is specified in the manifest,
+chrome.action.onClicked.addListener(async () => {
+  // Check if user is authenticated
+  const isAuthenticated = await authService.isAuthenticated();
+
+  // If not authenticated, show login page
+  if (!isAuthenticated) {
+    chrome.tabs.create({ url: "login.html" });
+    return;
+  }
+
+  // If authenticated, this won't run if popup is specified in the manifest,
   // but it's here as a fallback
   chrome.windows.create({
-    url: "login.html",
+    url: "popup.html",
     type: "popup",
     width: 450,
     height: 600,
@@ -336,3 +355,35 @@ function showNotification(message) {
     }, 5000);
   }
 }
+
+// Check authentication state when the extension loads
+chrome.runtime.onStartup.addListener(async () => {
+  // Check if the user is authenticated
+  const isAuthenticated = await authService.isAuthenticated();
+
+  if (isAuthenticated) {
+    // Set browser action popup to main popup
+    chrome.action.setPopup({ popup: "popup.html" });
+  } else {
+    // Set browser action popup to login
+    chrome.action.setPopup({ popup: "login.html" });
+  }
+});
+
+// Listen for alarm to check authentication state periodically
+chrome.alarms.create("authCheck", { periodInMinutes: 15 });
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "authCheck") {
+    // Check if the user is authenticated
+    const isAuthenticated = await authService.isAuthenticated();
+
+    if (isAuthenticated) {
+      // Set browser action popup to main popup
+      chrome.action.setPopup({ popup: "popup.html" });
+    } else {
+      // Set browser action popup to login
+      chrome.action.setPopup({ popup: "login.html" });
+    }
+  }
+});

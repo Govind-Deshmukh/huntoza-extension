@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>PursuitPal - Options</title>
+    <title>PursuitPal - Settings</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link
@@ -42,183 +42,326 @@
   </head>
   <body class="bg-gray-100 font-sans">
     <div class="container mx-auto py-8 px-4 max-w-3xl">
+      <!-- Header with Profile Info -->
       <header class="mb-8">
-        <div class="flex items-center mb-2">
-          <div class="mr-2">
-            <!-- Logo placeholder - replace with actual logo -->
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 32 32"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 4.2c2.337 0 4.2 1.863 4.2 4.2s-1.863 4.2-4.2 4.2-4.2-1.863-4.2-4.2 1.863-4.2 4.2-4.2zm0 19.74c-3.5 0-6.65-1.75-8.4-4.55 0-2.8 5.6-4.34 8.4-4.34s8.4 1.54 8.4 4.34c-1.75 2.8-4.9 4.55-8.4 4.55z"
-                fill="#552dec"
-              />
-            </svg>
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center">
+            <div class="mr-2">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 32 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 4.2c2.337 0 4.2 1.863 4.2 4.2s-1.863 4.2-4.2 4.2-4.2-1.863-4.2-4.2 1.863-4.2 4.2-4.2zm0 19.74c-3.5 0-6.65-1.75-8.4-4.55 0-2.8 5.6-4.34 8.4-4.34s8.4 1.54 8.4 4.34c-1.75 2.8-4.9 4.55-8.4 4.55z"
+                  fill="#552dec"
+                />
+              </svg>
+            </div>
+            <div>
+              <h1 class="text-2xl font-bold text-primary">
+                PursuitPal Settings
+              </h1>
+              <p class="text-gray-600">Configure your job hunting assistant</p>
+            </div>
           </div>
-          <h1 class="text-2xl font-bold text-primary">PursuitPal Settings</h1>
+          <div id="user-profile-container" class="flex items-center hidden">
+            <div class="mr-3 text-right">
+              <div id="user-name" class="font-medium text-gray-800"></div>
+              <div id="user-email" class="text-sm text-gray-500"></div>
+            </div>
+            <div
+              class="bg-primary text-white rounded-full h-10 w-10 flex items-center justify-center font-medium"
+              id="user-initial"
+            ></div>
+          </div>
         </div>
-        <p class="text-gray-600">
-          Configure how the extension extracts and processes job and contact
-          data
-        </p>
       </header>
 
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">
-          PursuitPal App Integration
-        </h2>
-
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2"
-            >PursuitPal App API URL</label
+      <!-- Tabs Navigation -->
+      <div class="mb-6 border-b border-gray-200">
+        <nav class="flex -mb-px">
+          <button
+            id="settings-tab-btn"
+            class="py-2 px-4 border-b-2 border-primary text-primary font-medium"
           >
-          <div class="mt-1 flex rounded-md shadow-sm">
-            <input
-              type="text"
-              id="apiUrl"
-              name="apiUrl"
-              class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md focus:ring-primary focus:border-primary sm:text-sm border-gray-300"
-              placeholder="https://your-pursuitpal-app.com/api"
-            />
+            Settings
+          </button>
+          <button
+            id="profile-tab-btn"
+            class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium"
+          >
+            Profile
+          </button>
+        </nav>
+      </div>
+
+      <!-- Settings Tab Content -->
+      <div id="settings-tab" class="tab-content">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 class="text-lg font-medium text-gray-900 mb-4">
+            Extraction Settings
+          </h2>
+
+          <div class="mb-6">
+            <div class="flex items-start mb-4">
+              <div class="flex items-center h-5">
+                <input
+                  id="autoExtractOnPageLoad"
+                  name="autoExtractOnPageLoad"
+                  type="checkbox"
+                  class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
+                />
+              </div>
+              <div class="ml-3 text-sm">
+                <label
+                  for="autoExtractOnPageLoad"
+                  class="font-medium text-gray-700"
+                  >Auto-extract job details</label
+                >
+                <p class="text-gray-500">
+                  Automatically scan for job details when you open a job posting
+                  page
+                </p>
+              </div>
+            </div>
           </div>
-          <p class="mt-1 text-sm text-gray-500">
-            Enter the URL of your PursuitPal API
-          </p>
         </div>
 
-        <div class="mb-6">
-          <div class="flex items-start mb-4">
-            <div class="flex items-center h-5">
-              <input
-                id="trackApplicationsInApp"
-                name="trackApplicationsInApp"
-                type="checkbox"
-                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
-              />
-            </div>
-            <div class="ml-3 text-sm">
-              <label
-                for="trackApplicationsInApp"
-                class="font-medium text-gray-700"
-                >Track applications in PursuitPal app</label
-              >
-              <p class="text-gray-500">
-                Automatically open the job application form in your app when you
-                click "Create Application"
-              </p>
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 class="text-lg font-medium text-gray-900 mb-4">AI Enhancement</h2>
+
+          <div class="mb-6">
+            <div class="flex items-start mb-4">
+              <div class="flex items-center h-5">
+                <input
+                  id="aiEnhancementEnabled"
+                  name="aiEnhancementEnabled"
+                  type="checkbox"
+                  class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
+                />
+              </div>
+              <div class="ml-3 text-sm">
+                <label
+                  for="aiEnhancementEnabled"
+                  class="font-medium text-gray-700"
+                  >Enable AI enhancement</label
+                >
+                <p class="text-gray-500">
+                  Use AI to improve extracted job details and fill in missing
+                  information
+                </p>
+              </div>
             </div>
           </div>
+
+          <div
+            id="aiSettingsContainer"
+            class="pl-8 mb-4 border-l-2 border-gray-200"
+          >
+            <div class="mb-4">
+              <div class="flex items-center justify-between">
+                <label class="block text-sm font-medium text-gray-700"
+                  >Available AI credits</label
+                >
+                <span
+                  id="aiCredits"
+                  class="inline-block bg-primary bg-opacity-20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                  >--</span
+                >
+              </div>
+              <div class="mt-1">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                  <div
+                    id="aiCreditsBar"
+                    class="bg-primary h-2.5 rounded-full"
+                    style="width: 45%"
+                  ></div>
+                </div>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">
+                Each AI enhancement uses 1 credit. Credits renew monthly.
+              </p>
+            </div>
+
+            <div class="mb-4">
+              <button
+                id="buyCreditsBtn"
+                class="inline-flex items-center px-3 py-2 border border-primary shadow-sm text-sm leading-4 font-medium rounded-md text-primary bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              >
+                Buy more credits
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button
+            id="saveOptions"
+            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+          >
+            Save Settings
+          </button>
         </div>
       </div>
 
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">
-          Extraction Settings
-        </h2>
-
-        <div class="mb-6">
-          <div class="flex items-start mb-4">
-            <div class="flex items-center h-5">
-              <input
-                id="autoExtractOnPageLoad"
-                name="autoExtractOnPageLoad"
-                type="checkbox"
-                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
-              />
-            </div>
-            <div class="ml-3 text-sm">
-              <label
-                for="autoExtractOnPageLoad"
-                class="font-medium text-gray-700"
-                >Auto-extract job details</label
-              >
-              <p class="text-gray-500">
-                Automatically scan for job details when you open a job posting
-                page
-              </p>
-            </div>
+      <!-- Profile Tab Content -->
+      <div id="profile-tab" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div id="profile-loading" class="flex justify-center py-8">
+            <div
+              class="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"
+            ></div>
           </div>
-        </div>
-      </div>
 
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">AI Enhancement</h2>
-
-        <div class="mb-6">
-          <div class="flex items-start mb-4">
-            <div class="flex items-center h-5">
-              <input
-                id="aiEnhancementEnabled"
-                name="aiEnhancementEnabled"
-                type="checkbox"
-                class="focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded"
-              />
-            </div>
-            <div class="ml-3 text-sm">
-              <label
-                for="aiEnhancementEnabled"
-                class="font-medium text-gray-700"
-                >Enable AI enhancement</label
-              >
-              <p class="text-gray-500">
-                Use AI to improve extracted job details and fill in missing
-                information
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          id="aiSettingsContainer"
-          class="pl-8 mb-4 border-l-2 border-gray-200"
-        >
-          <div class="mb-4">
-            <div class="flex items-center justify-between">
-              <label class="block text-sm font-medium text-gray-700"
-                >Available AI credits</label
-              >
-              <span
-                id="aiCredits"
-                class="inline-block bg-primary bg-opacity-20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                >--</span
-              >
-            </div>
-            <div class="mt-1">
-              <div class="w-full bg-gray-200 rounded-full h-2.5">
+          <div id="profile-content" class="hidden">
+            <div class="flex items-center justify-center mb-8">
+              <div class="relative">
                 <div
-                  id="aiCreditsBar"
-                  class="bg-primary h-2.5 rounded-full"
-                  style="width: 45%"
+                  class="h-24 w-24 bg-primary text-white rounded-full flex items-center justify-center text-3xl font-medium"
+                  id="profile-initial"
                 ></div>
               </div>
             </div>
-            <p class="mt-1 text-xs text-gray-500">
-              Each AI enhancement uses 1 credit. Credits renew monthly.
-            </p>
+
+            <div class="space-y-6">
+              <div>
+                <h3
+                  class="text-center text-xl font-medium text-gray-900"
+                  id="profile-name"
+                ></h3>
+                <p class="text-center text-gray-500" id="profile-email"></p>
+              </div>
+
+              <div class="border-t border-gray-200 pt-4">
+                <dl class="divide-y divide-gray-200">
+                  <div class="py-3 flex justify-between">
+                    <dt class="text-sm font-medium text-gray-500">
+                      Account status
+                    </dt>
+                    <dd class="text-sm text-gray-900">
+                      <span
+                        class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        >Active</span
+                      >
+                    </dd>
+                  </div>
+                  <div
+                    class="py-3 flex justify-between"
+                    id="account-type-container"
+                  >
+                    <dt class="text-sm font-medium text-gray-500">
+                      Account type
+                    </dt>
+                    <dd class="text-sm text-gray-900" id="account-type">
+                      Standard
+                    </dd>
+                  </div>
+                  <div
+                    class="py-3 flex justify-between"
+                    id="last-login-container"
+                  >
+                    <dt class="text-sm font-medium text-gray-500">
+                      Last login
+                    </dt>
+                    <dd class="text-sm text-gray-900" id="last-login">
+                      Just now
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="flex justify-center pt-4">
+                <button
+                  id="logout-btn"
+                  class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                  Log out
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="mb-4">
-            <button
-              id="buyCreditsBtn"
-              class="inline-flex items-center px-3 py-2 border border-primary shadow-sm text-sm leading-4 font-medium rounded-md text-primary bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-            >
-              Buy more credits
-            </button>
+          <div id="profile-error" class="hidden">
+            <div class="text-center py-8">
+              <svg
+                class="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">
+                Failed to load profile
+              </h3>
+              <p class="mt-1 text-sm text-gray-500">
+                There was an error loading your profile information.
+              </p>
+              <div class="mt-6">
+                <button
+                  id="retry-profile-btn"
+                  class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="profile-unauthorized" class="hidden">
+            <div class="text-center py-8">
+              <svg
+                class="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">
+                You need to sign in
+              </h3>
+              <p class="mt-1 text-sm text-gray-500">
+                Please sign in to view your profile.
+              </p>
+              <div class="mt-6">
+                <button
+                  id="login-redirect-btn"
+                  class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                >
+                  Sign in
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="flex justify-end">
-        <button
-          id="saveOptions"
-          class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-        >
-          Save Settings
-        </button>
       </div>
 
       <div id="statusMessage" class="mt-4 hidden p-4 rounded-md">
@@ -226,6 +369,7 @@
       </div>
     </div>
 
+    <script src="auth-service.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

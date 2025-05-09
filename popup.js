@@ -45,9 +45,16 @@ const API_BASE_URL = "http://localhost:3000/api/v1";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
+  // Check if auth service is available
+  if (typeof authService === "undefined") {
+    console.error("Auth service not found");
+    window.location.href = "login.html";
+    return;
+  }
+
   // Check authentication first
   try {
-    const isAuthenticated = await checkAuthentication();
+    const isAuthenticated = await authService.isAuthenticated();
 
     if (!isAuthenticated) {
       // Not authenticated, redirect to login
@@ -100,32 +107,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// Check if user is authenticated
-async function checkAuthentication() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: "checkAuth" }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-
-      resolve(response.isAuthenticated);
-    });
-  });
-}
-
 // Load user information
 async function loadUserInfo() {
   try {
-    // Get user data from storage
-    const userData = await chrome.storage.local.get(["user"]);
+    // Get user data from auth service
+    currentUser = await authService.getCurrentUser();
 
-    if (userData.user) {
-      currentUser = userData.user;
-
+    if (currentUser) {
       // Update UI with user info
       if (userDisplay) {
-        userDisplay.textContent = userData.user.name || userData.user.email;
+        userDisplay.textContent = currentUser.name || currentUser.email;
+      }
+    } else {
+      // If no user data, try to get from storage as fallback
+      const userData = await chrome.storage.local.get(["user"]);
+
+      if (userData.user) {
+        currentUser = userData.user;
+
+        // Update UI with user info
+        if (userDisplay) {
+          userDisplay.textContent = userData.user.name || userData.user.email;
+        }
       }
     }
   } catch (error) {
@@ -142,23 +145,11 @@ async function handleLogout() {
       logoutBtn.disabled = true;
     }
 
-    // Call background script to handle logout
-    await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "logout" }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
+    // Call auth service to handle logout
+    const result = await authService.logout();
 
-        if (response.success) {
-          resolve();
-        } else {
-          reject(new Error(response.error || "Logout failed"));
-        }
-      });
-    });
-
-    // Redirect to login page
+    // Redirect to login page regardless of result
+    // This ensures user can start fresh even if API logout fails
     window.location.href = "login.html";
   } catch (error) {
     console.error("Logout error:", error);
@@ -174,52 +165,7 @@ async function handleLogout() {
 
 // Make an authenticated API request
 async function fetchWithAuth(endpoint, options = {}) {
-  try {
-    // First check if we're authenticated
-    const isAuthenticated = await checkAuthentication();
-
-    if (!isAuthenticated) {
-      throw new Error("Not authenticated");
-    }
-
-    // Get current token
-    const authData = await chrome.storage.local.get(["token"]);
-
-    if (!authData.token) {
-      throw new Error("No auth token available");
-    }
-
-    // Set up headers with auth token
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authData.token}`,
-      ...options.headers,
-    };
-
-    // Make the request
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    // Handle 401 Unauthorized
-    if (response.status === 401) {
-      // Token might be expired, redirect to login
-      window.location.href = "login.html";
-      throw new Error("Session expired");
-    }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "API request failed");
-    }
-
-    return data;
-  } catch (error) {
-    console.error("API request error:", error);
-    throw error;
-  }
+  return authService.fetchWithAuth(endpoint, options);
 }
 
 // Set up tab switching functionality

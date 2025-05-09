@@ -59,8 +59,47 @@ class AuthService {
    */
   async getCurrentUser() {
     try {
+      // First check if we have a cached user
       const authData = await this.getAuthData();
-      return authData.user || null;
+
+      if (authData.user) {
+        return authData.user;
+      }
+
+      // If no cached user but we have a token, fetch from API
+      if (authData.token) {
+        // Fetch current user data from the API
+        const response = await fetch(`${this.API_BASE_URL}/auth/me`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authData.token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            // Update stored user data
+            await chrome.storage.local.set({ user: data.user });
+            return data.user;
+          }
+        }
+
+        // If API call fails, attempt token refresh and try again
+        if (response.status === 401) {
+          try {
+            await this.refreshToken();
+            return this.getCurrentUser(); // Recursive call with new token
+          } catch (refreshError) {
+            console.error("Failed to refresh token:", refreshError);
+            await this.logout();
+            return null;
+          }
+        }
+      }
+
+      return null;
     } catch (error) {
       console.error("Error getting user data:", error);
       return null;
@@ -239,17 +278,27 @@ class AuthService {
           // Continue with local logout even if API call fails
         }
       }
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
-      // Clear local auth data
+      // Always clear local auth data regardless of API success
       await chrome.storage.local.remove([
         "token",
         "refreshToken",
         "tokenExpiry",
         "user",
       ]);
+
+      // Return success to indicate logout completed
+      return { success: true };
     }
   }
 }
 
 // Export as singleton
 const authService = new AuthService();
+
+// Make it available globally for non-module scripts
+if (typeof window !== "undefined") {
+  window.authService = authService;
+}
