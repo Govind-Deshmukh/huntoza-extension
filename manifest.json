@@ -16,10 +16,10 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["config.js", "content.js"]
+      "js": ["config.js", "config-loader.js", "content.js"],
+      "run_at": "document_start"
     }
   ],
-
   "background": {
     "service_worker": "background.js"
   },
@@ -31,7 +31,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["auth-service.js", "config.js"],
+      "resources": ["config.js", "config-loader.js", "auth-service.js"],
       "matches": ["<all_urls>"]
     }
   ]

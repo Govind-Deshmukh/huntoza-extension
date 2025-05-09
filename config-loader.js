@@ -1,121 +1,169 @@
 /**
- * PursuitPal - YAML Configuration Loader
+ * PursuitPal - Configuration Loader
  *
- * This file loads and parses the YAML configuration.
- * You'll need to include the 'js-yaml' library in your project.
- * Install it with: npm install js-yaml
+ * This file loads the configuration from config.js and makes it
+ * available throughout the extension.
  */
 
-// Note: For Chrome Extensions, you'll need to include js-yaml in your extension
-// Since Chrome Extensions don't support npm directly, you can:
-// 1. Download the js-yaml.min.js file and include it in your extension
-// 2. Or use the CDN version and include it in your manifest.json as a web_accessible_resource
-
-// Sample implementation using the js-yaml library
 class ConfigLoader {
   constructor() {
     this.config = null;
-    this.currentEnv = null;
+    this.loadConfig();
   }
 
   /**
-   * Load configuration from YAML file
-   * @param {string} yamlContent - The content of the YAML file
-   * @returns {Object} - The parsed configuration
+   * Load configuration from config.js
    */
-  loadFromYaml(yamlContent) {
+  loadConfig() {
     try {
-      // Parse YAML content
-      const parsedConfig = jsyaml.load(yamlContent);
+      // In Chrome extension context, we import from the pre-defined config
+      // We assume config.js is loaded before this file
+      if (typeof window !== "undefined" && window.appConfig) {
+        this.config = window.appConfig;
+        console.log("Configuration loaded from global appConfig");
+        return this.config;
+      }
 
-      // Extract current environment
-      this.currentEnv = parsedConfig.current_environment;
-
-      // Get environment-specific configuration
-      this.config = parsedConfig.environments[this.currentEnv];
-
-      // Add helper methods
-      this.addHelperMethods();
-
-      return this.config;
+      // For module environment or if global config not available
+      try {
+        // Try to import from config.js
+        this.config = require("./config.js");
+        console.log("Configuration loaded from config.js module");
+        return this.config;
+      } catch (importError) {
+        console.warn("Could not import config.js as module:", importError);
+        // Fall back to embedded config
+        return this.loadEmbeddedConfig();
+      }
     } catch (error) {
       console.error("Error loading configuration:", error);
-      throw error;
+      // Fall back to embedded config
+      return this.loadEmbeddedConfig();
     }
   }
 
   /**
-   * Add helper methods to the configuration object
+   * Get the current configuration
    */
-  addHelperMethods() {
-    // Add getApiUrl helper
-    this.config.getApiUrl = (endpoint) => {
-      return `${this.config.api.base_url}${
-        endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-      }`;
-    };
-
-    // Add getAppUrl helper
-    this.config.getAppUrl = (routePath) => {
-      return `${this.config.app.base_url}${routePath}`;
-    };
-
-    // Add isFeatureEnabled helper
-    this.config.isFeatureEnabled = (featureName) => {
-      const formattedName = featureName
-        .replace(/([A-Z])/g, "_$1")
-        .toLowerCase();
-      return this.config.features[formattedName] === true;
-    };
-
-    // Add current environment
-    this.config.CURRENT_ENV = this.currentEnv;
+  getConfig() {
+    if (!this.config) {
+      this.loadConfig();
+    }
+    return this.config;
   }
 
   /**
-   * For Chrome Extension usage, load the embedded YAML content
-   * This is a fallback method if loading from a file is not possible
+   * Get a specific configuration value
+   * @param {string} key - Configuration key (dot notation supported, e.g., 'features.aiEnhancement')
+   * @param {any} defaultValue - Default value if key not found
+   */
+  get(key, defaultValue = null) {
+    if (!this.config) {
+      this.loadConfig();
+    }
+
+    // Support dot notation for nested properties
+    const parts = key.split(".");
+    let value = this.config;
+
+    for (const part of parts) {
+      if (value && typeof value === "object" && part in value) {
+        value = value[part];
+      } else {
+        return defaultValue;
+      }
+    }
+
+    return value;
+  }
+
+  /**
+   * Check if a feature is enabled
+   * @param {string} featureName - Name of the feature
+   */
+  isFeatureEnabled(featureName) {
+    return this.get(`features.${featureName}`) === true;
+  }
+
+  /**
+   * Get API URL with endpoint
+   * @param {string} endpoint - API endpoint
+   */
+  getApiUrl(endpoint) {
+    const baseUrl = this.get("apiBaseUrl");
+    return `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  }
+
+  /**
+   * Get app URL with route
+   * @param {string} route - Route path
+   */
+  getAppUrl(route) {
+    const baseUrl = this.get("appBaseUrl");
+    return `${baseUrl}${route}`;
+  }
+
+  /**
+   * Fallback embedded configuration
+   * This is used if loading from config.js fails
    */
   loadEmbeddedConfig() {
-    // Embed the YAML content directly if file loading is not an option
-    const yamlContent = `
-# PursuitPal Configuration
-current_environment: development
+    console.warn("Using embedded configuration as fallback");
 
-environments:
-  development:
-    api:
-      base_url: http://localhost:3000/api/v1
-      base_path: /api/v1
-      health_endpoint: /health
-    
-    app:
-      base_url: http://localhost:3000
-      routes:
-        login: /login
-        signup: /signup
-        jobs:
-          new: /jobs/new
-          list: /jobs
-        contacts:
-          new: /contacts/new
-          list: /contacts
-        buy_credits: /buy-credits
-    
-    auth:
-      token_expiry: 3600000
-    
-    features:
-      ai_enhancement: true
-      contact_extraction: false
+    this.config = {
+      // API endpoints
+      apiBaseUrl: "http://localhost:5000/api/v1",
 
-  # Add staging and production environments as needed
-    `;
+      // Web app URLs
+      appBaseUrl: "http://localhost:3000",
 
-    return this.loadFromYaml(yamlContent);
+      // Routes
+      routes: {
+        login: "/login",
+        signup: "/signup",
+        jobs: {
+          new: "/jobs/new",
+          list: "/jobs",
+          details: (id) => `/jobs/${id}`,
+        },
+        contacts: {
+          new: "/contacts/new",
+          list: "/contacts",
+          details: (id) => `/contacts/${id}`,
+        },
+        buyCredits: "/buy-credits",
+      },
+
+      // Authentication settings
+      auth: {
+        tokenExpiry: 3600 * 1000, // 1 hour in milliseconds
+      },
+
+      // Feature flags
+      features: {
+        aiEnhancement: true,
+        contactExtraction: false,
+      },
+    };
+
+    // Add helper methods
+    this.config.getApiUrl = this.getApiUrl.bind(this);
+    this.config.getAppUrl = this.getAppUrl.bind(this);
+    this.config.isFeatureEnabled = this.isFeatureEnabled.bind(this);
+
+    return this.config;
   }
 }
 
 // Create and export a singleton instance
 const configLoader = new ConfigLoader();
-export default configLoader;
+
+// Make it available globally for non-module scripts
+if (typeof window !== "undefined") {
+  window.configLoader = configLoader;
+}
+
+// Export for module usage
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = configLoader;
+}
