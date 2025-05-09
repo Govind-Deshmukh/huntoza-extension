@@ -10,6 +10,11 @@
 // Import authentication service
 importScripts("auth-service.js");
 
+// Load configuration if available
+const config = window.configLoader
+  ? window.configLoader.getConfig()
+  : window.appConfig;
+
 // Global state to track pending application data
 let pendingApplicationData = null;
 let pendingContactData = null;
@@ -68,13 +73,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     console.log("PursuitPal extension installed");
+
+    // Get default API URL from config if available
+    const apiUrl = config ? config.apiBaseUrl : "http://localhost:3000/api";
+
+    // Get AI enhancement state from config if available
+    const aiEnhancementEnabled = config
+      ? config.isFeatureEnabled("aiEnhancement")
+      : false;
+
     // Set default options
     chrome.storage.sync.set({
       options: {
-        apiUrl: "http://localhost:3000/api",
+        apiUrl: apiUrl,
         trackApplicationsInApp: true,
         autoExtractOnPageLoad: true,
-        aiEnhancementEnabled: false,
+        aiEnhancementEnabled: aiEnhancementEnabled,
       },
     });
   }
@@ -96,8 +110,15 @@ chrome.action.onClicked.addListener(() => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Only run when page load is complete
   if (changeInfo.status === "complete") {
+    // Define URLs for job and contact forms using config if available
+    const jobFormUrl = config ? config.getAppUrl(config.routes.jobs.new) : "";
+    const contactFormUrl = config
+      ? config.getAppUrl(config.routes.contacts.new)
+      : "";
+
     // Check if this is the jobs/new page loading
     if (
+      tab.url.includes(jobFormUrl) ||
       tab.url.includes("localhost:3000/jobs/new") ||
       tab.url.includes("your-pursuitpal-app.com/jobs/new")
     ) {
@@ -136,6 +157,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
     // Check if this is the contacts/new page loading
     if (
+      tab.url.includes(contactFormUrl) ||
       tab.url.includes("localhost:3000/contacts/new") ||
       tab.url.includes("your-pursuitpal-app.com/contacts/new")
     ) {
@@ -261,6 +283,10 @@ function injectStateToReactApp(data, type = "job") {
 
 // Function to show a notification to the user
 function showNotification(message) {
+  // Get primary color from config if available
+  const primaryColor =
+    config && config.styles ? config.styles.primaryColor : "#552dec";
+
   // Check if notification already exists
   let notification = document.getElementById("extension-notification");
 
@@ -275,7 +301,7 @@ function showNotification(message) {
       top: "20px",
       left: "50%",
       transform: "translateX(-50%)",
-      backgroundColor: "#552dec",
+      backgroundColor: primaryColor,
       color: "white",
       padding: "12px 24px",
       borderRadius: "4px",

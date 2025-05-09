@@ -7,6 +7,11 @@
  * - Updates UI based on user selections
  */
 
+// Get configuration
+const config = window.configLoader
+  ? window.configLoader.getConfig()
+  : window.appConfig;
+
 // DOM Elements
 const apiUrlInput = document.getElementById("apiUrl");
 const trackApplicationsInApp = document.getElementById(
@@ -21,12 +26,14 @@ const buyCreditsBtn = document.getElementById("buyCreditsBtn");
 const saveOptionsBtn = document.getElementById("saveOptions");
 const statusMessage = document.getElementById("statusMessage");
 
-// Default options
+// Default options from config or fallback
 const defaultOptions = {
-  apiUrl: "http://localhost:3000/api",
+  apiUrl: config ? config.apiBaseUrl : "http://localhost:3000/api",
   trackApplicationsInApp: true,
   autoExtractOnPageLoad: true,
-  aiEnhancementEnabled: false,
+  aiEnhancementEnabled: config
+    ? config.isFeatureEnabled("aiEnhancement")
+    : false,
 };
 
 // Initialize the options page
@@ -70,6 +77,19 @@ function updateAISettingsVisibility() {
 
 // Load AI credits from the API or storage
 function loadAICredits() {
+  // Check if AI feature is enabled in config
+  const aiFeatureEnabled = config
+    ? config.isFeatureEnabled("aiEnhancement")
+    : true;
+
+  if (!aiFeatureEnabled) {
+    // If AI is disabled in config, hide the section
+    aiEnhancementEnabled.checked = false;
+    aiEnhancementEnabled.disabled = true;
+    aiSettingsContainer.classList.add("hidden");
+    return;
+  }
+
   // In a real implementation, you would fetch this from your API
   // For demo, we'll just use mock data
 
@@ -104,9 +124,12 @@ function saveOptions() {
 
 // Navigate to buy credits page
 function buyCredits() {
-  // In a real implementation, you would redirect to your payment page
-  // For demo, we'll just open a mock URL
-  chrome.tabs.create({ url: "http://localhost:3000/buy-credits" });
+  // Use config for the buy credits URL if available
+  const buyCreditsUrl = config
+    ? config.getAppUrl(config.routes.buyCredits)
+    : "http://localhost:3000/buy-credits";
+
+  chrome.tabs.create({ url: buyCreditsUrl });
 }
 
 // Show status message

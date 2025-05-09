@@ -6,8 +6,22 @@
  */
 
 (function () {
-  // Check if we're on the job form page
-  if (!window.location.href.includes("/jobs/new")) {
+  // Get configuration if available
+  const config = window.configLoader
+    ? window.configLoader.getConfig()
+    : window.appConfig;
+
+  // Check if we're on the job form page using config if available
+  const isJobFormPage = () => {
+    if (config) {
+      return window.location.href.includes(
+        config.getAppUrl(config.routes.jobs.new)
+      );
+    }
+    return window.location.href.includes("/jobs/new");
+  };
+
+  if (!isJobFormPage()) {
     return;
   }
 
@@ -146,13 +160,17 @@
 
   // Show feedback notification to the user
   function showFeedbackToUser(message) {
+    // Get primary color from config if available
+    const primaryColor =
+      config && config.styles ? config.styles.primaryColor : "#4CAF50";
+
     // Create notification element
     const notification = document.createElement("div");
     notification.style.position = "fixed";
     notification.style.top = "20px";
     notification.style.left = "50%";
     notification.style.transform = "translateX(-50%)";
-    notification.style.backgroundColor = "#4CAF50";
+    notification.style.backgroundColor = primaryColor;
     notification.style.color = "white";
     notification.style.padding = "10px 20px";
     notification.style.borderRadius = "4px";

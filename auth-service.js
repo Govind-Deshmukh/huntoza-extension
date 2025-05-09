@@ -10,7 +10,13 @@
 
 class AuthService {
   constructor() {
-    this.API_BASE_URL = "http://localhost:3000/api/v1";
+    // Get configuration
+    this.config = window.configLoader
+      ? window.configLoader.getConfig()
+      : window.appConfig;
+    this.API_BASE_URL = this.config
+      ? this.config.apiBaseUrl
+      : "http://localhost:5000/api/v1";
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];
@@ -86,7 +92,10 @@ class AuthService {
       };
 
       // Make the API request
-      const response = await fetch(`${this.API_BASE_URL}${endpoint}`, {
+      const requestUrl = this.config
+        ? this.config.getApiUrl(endpoint)
+        : `${this.API_BASE_URL}${endpoint}`;
+      const response = await fetch(requestUrl, {
         ...options,
         headers,
       });
@@ -140,17 +149,19 @@ class AuthService {
             throw new Error("No refresh token available");
           }
 
+          // Get refresh token endpoint from config
+          const refreshUrl = this.config
+            ? this.config.getApiUrl("auth/refresh-token")
+            : `${this.API_BASE_URL}/auth/refresh-token`;
+
           // Call refresh token API
-          const response = await fetch(
-            `${this.API_BASE_URL}/auth/refresh-token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ refreshToken: authData.refreshToken }),
-            }
-          );
+          const response = await fetch(refreshUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ refreshToken: authData.refreshToken }),
+          });
 
           const data = await response.json();
 
@@ -158,11 +169,17 @@ class AuthService {
             throw new Error(data.message || "Failed to refresh token");
           }
 
+          // Get token expiry from config or use default
+          const tokenExpiryDuration =
+            this.config && this.config.auth
+              ? this.config.auth.tokenExpiry
+              : 3600 * 1000;
+
           // Save new tokens
           await chrome.storage.local.set({
             token: data.token,
             refreshToken: data.refreshToken,
-            tokenExpiry: Date.now() + 3600 * 1000, // Token valid for 1 hour
+            tokenExpiry: Date.now() + tokenExpiryDuration, // Token valid based on config
           });
 
           resolve({ token: data.token, refreshToken: data.refreshToken });
@@ -204,7 +221,12 @@ class AuthService {
       const authData = await this.getAuthData();
       if (authData.token) {
         try {
-          await fetch(`${this.API_BASE_URL}/auth/logout`, {
+          // Get logout endpoint from config
+          const logoutUrl = this.config
+            ? this.config.getApiUrl("auth/logout")
+            : `${this.API_BASE_URL}/auth/logout`;
+
+          await fetch(logoutUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
