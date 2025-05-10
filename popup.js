@@ -389,7 +389,9 @@ if (createBtn) {
       chrome.storage.local.set({ pendingJobApplication: jobData });
 
       // Construct the URL for the job form
-      const appUrl = `${API_BASE_URL.replace("/api/v1", "")}/jobs/new`;
+      const appUrl = config
+        ? config.getAppUrl(config.routes.jobs.new)
+        : "https://pursuitpal.app/jobs/new";
 
       // Create a new tab with the job form
       chrome.tabs.create({ url: appUrl }, (tab) => {

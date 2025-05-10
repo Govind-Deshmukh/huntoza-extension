@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     // Open signup page in a new tab using config for URL
     const signupUrl = config
-      ? config.getAppUrl(config.routes.signup)
+      ? config.getAppUrl(config.routes.register)
       : "https://pursuitpal.app/register";
     chrome.tabs.create({ url: signupUrl });
   });

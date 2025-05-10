@@ -115,7 +115,7 @@ class ConfigLoader {
       apiBaseUrl: "https://api.pursuitpal.app/api/v1",
 
       // Web app URLs
-      appBaseUrl: "https://pursuitpal.app/",
+      appBaseUrl: "https://pursuitpal.app",
 
       // Routes
       routes: {

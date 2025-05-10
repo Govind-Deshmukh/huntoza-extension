@@ -11,14 +11,12 @@ const config = {
 
   // Web app URLs
   appBaseUrl: "https://pursuitpal.app",
-
   // Routes
   routes: {
     // Auth routes
     login: "/login",
-    signup: "/register",
+    register: "/register",
 
-    // Job routes
     jobs: {
       new: "/jobs/new",
       list: "/jobs",
