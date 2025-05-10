@@ -16,7 +16,7 @@ class AuthService {
       : window.appConfig;
     this.API_BASE_URL = this.config
       ? this.config.apiBaseUrl
-      : "http://localhost:5000/api/v1";
+      : "https://api.pursuitpal.app/api/v1";
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];

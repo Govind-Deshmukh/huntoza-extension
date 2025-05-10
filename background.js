@@ -87,7 +87,9 @@ chrome.runtime.onInstalled.addListener((details) => {
     console.log("PursuitPal extension installed");
 
     // Get default API URL from config if available
-    const apiUrl = config ? config.apiBaseUrl : "http://localhost:3000/api";
+    const apiUrl = config
+      ? config.apiBaseUrl
+      : "https://api.pursuitpal.app/api/v1";
 
     // Get AI enhancement state from config if available
     const aiEnhancementEnabled = config
@@ -177,8 +179,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Check if this is the contacts/new page loading
     if (
       tab.url.includes(contactFormUrl) ||
-      tab.url.includes("localhost:3000/contacts/new") ||
-      tab.url.includes("your-pursuitpal-app.com/contacts/new")
+      tab.url.includes("pursuitpal.app/contacts/new") ||
+      tab.url.includes("pursuitpal.app/contacts/new")
     ) {
       // Check authentication first
       authService.isAuthenticated().then((isAuthenticated) => {

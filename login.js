@@ -16,7 +16,7 @@ const config = window.configLoader
 // API Base URL from config
 const API_BASE_URL = config
   ? config.apiBaseUrl
-  : "http://localhost:5000/api/v1";
+  : "https://api.pursuitpal.app/api/v1";
 
 // DOM Elements
 const loginForm = document.getElementById("login-form");
@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Open signup page in a new tab using config for URL
     const signupUrl = config
       ? config.getAppUrl(config.routes.signup)
-      : "http://localhost:3000/register";
+      : "https://pursuitpal.app/register";
     chrome.tabs.create({ url: signupUrl });
   });
 

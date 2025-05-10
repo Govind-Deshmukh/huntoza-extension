@@ -112,10 +112,10 @@ class ConfigLoader {
 
     this.config = {
       // API endpoints
-      apiBaseUrl: "http://localhost:5000/api/v1",
+      apiBaseUrl: "https://api.pursuitpal.app/api/v1",
 
       // Web app URLs
-      appBaseUrl: "http://localhost:3000",
+      appBaseUrl: "https://pursuitpal.app/",
 
       // Routes
       routes: {

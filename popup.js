@@ -41,7 +41,7 @@ let currentJobData = null;
 let currentUser = null;
 
 // API Base URL
-const API_BASE_URL = "http://localhost:3000/api/v1";
+const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
