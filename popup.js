@@ -1,180 +1,76 @@
 /**
- * PursuitPal - Popup Script with Authentication
+ * PursuitPal - Popup Script
  *
- * This script controls the popup UI and manages communication with
- * the content script and background script. It includes authentication
- * checks and secure API interactions.
+ * Handles the popup UI and user interactions:
+ * - Displays extracted job and contact data
+ * - Manages tab switching
+ * - Handles data extraction and sending to PursuitPal app
  */
 
-// DOM Elements
+// DOM Elements - Main UI
 const loadingState = document.getElementById("loading-state");
 const errorState = document.getElementById("error-state");
-const jobDataForm = document.getElementById("job-data-form");
-const refreshBtn = document.getElementById("refresh-btn");
-const createBtn = document.getElementById("create-btn");
 const settingsBtn = document.getElementById("settings-btn");
-const logoutBtn = document.getElementById("logout-btn");
-const userDisplay = document.getElementById("user-display");
-const connectionStatus = document.getElementById("connection-status");
 
-// Tab elements
+// DOM Elements - Tabs
 const jobsTab = document.getElementById("jobs-tab");
 const contactsTab = document.getElementById("contacts-tab");
 const jobTabContent = document.getElementById("job-tab-content");
 const contactsTabContent = document.getElementById("contacts-tab-content");
 
-// Form fields
-const companyInput = document.getElementById("company");
-const positionInput = document.getElementById("position");
-const jobLocationInput = document.getElementById("jobLocation");
-const jobTypeSelect = document.getElementById("jobType");
-const salaryCurrencySelect = document.getElementById("salaryCurrency");
-const salaryMinInput = document.getElementById("salaryMin");
-const salaryMaxInput = document.getElementById("salaryMax");
-const jobDescriptionPreview = document.getElementById("jobDescriptionPreview");
-const jobUrlInput = document.getElementById("jobUrl");
-const prioritySelect = document.getElementById("priority");
+// DOM Elements - Job Data
+const noJobData = document.getElementById("no-job-data");
+const jobDataPreview = document.getElementById("job-data-preview");
+const extractJobBtn = document.getElementById("extract-job-btn");
+const refreshJobBtn = document.getElementById("refresh-job-btn");
+const sendJobBtn = document.getElementById("send-job-btn");
 
-// Current job data
+// DOM Elements - Job Data Fields
+const jobPosition = document.getElementById("job-position");
+const jobCompany = document.getElementById("job-company");
+const jobLocation = document.getElementById("job-location");
+const jobType = document.getElementById("job-type");
+const jobSalary = document.getElementById("job-salary");
+const jobDescription = document.getElementById("job-description");
+const jobUrl = document.getElementById("job-url");
+
+// DOM Elements - Contact Data
+const noContactData = document.getElementById("no-contact-data");
+const contactDataPreview = document.getElementById("contact-data-preview");
+const extractContactBtn = document.getElementById("extract-contact-btn");
+const refreshContactBtn = document.getElementById("refresh-contact-btn");
+const sendContactBtn = document.getElementById("send-contact-btn");
+
+// DOM Elements - Contact Data Fields
+const contactInitials = document.getElementById("contact-initials");
+const contactName = document.getElementById("contact-name");
+const contactPosition = document.getElementById("contact-position");
+const contactCompany = document.getElementById("contact-company");
+const contactEmail = document.getElementById("contact-email");
+const contactPhone = document.getElementById("contact-phone");
+const contactLocation = document.getElementById("contact-location");
+const contactConnections = document.getElementById("contact-connections");
+const contactAbout = document.getElementById("contact-about");
+const contactUrl = document.getElementById("contact-url");
+
+// Current data
 let currentJobData = null;
-// Current user data
-let currentUser = null;
-
-// Hardcoded URLs - no more config dependency
-const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
-const APP_BASE_URL = "https://pursuitpal.app";
+let currentContactData = null;
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
-  // Check if auth service is available
-  if (typeof authService === "undefined") {
-    console.error("Auth service not found");
-    window.location.href = "login.html";
-    return;
-  }
+  // Setup tab switching
+  setupTabs();
 
-  // Check authentication first
-  try {
-    const isAuthenticated = await authService.isAuthenticated();
+  // Setup button listeners
+  setupButtonListeners();
 
-    if (!isAuthenticated) {
-      // Not authenticated, redirect to login
-      window.location.href = "login.html";
-      return;
-    }
-
-    // Load and display user info
-    await loadUserInfo();
-
-    // Set up tab switching
-    setupTabs();
-
-    showLoadingState();
-
-    try {
-      // Check connection to the app
-      checkAppConnection();
-
-      // Get the current tab
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      // Try to get cached job data first
-      chrome.storage.local.get(["jobData"], async (result) => {
-        if (result.jobData && result.jobData.jobUrl === tab.url) {
-          // We have cached data for this URL
-          updateUIWithJobData(result.jobData);
-          hideLoadingState();
-        } else {
-          // No cached data, request extraction from content script
-          try {
-            await extractJobDataFromPage(tab);
-          } catch (error) {
-            console.error("Error extracting job data:", error);
-            showErrorState();
-          }
-        }
-      });
-    } catch (error) {
-      console.error("Error initializing popup:", error);
-      showErrorState();
-    }
-  } catch (error) {
-    console.error("Authentication error:", error);
-    // Redirect to login on any auth error
-    window.location.href = "login.html";
-  }
+  // Load and display data
+  await loadData();
 });
 
-// Load user information
-async function loadUserInfo() {
-  try {
-    // Get user data from auth service
-    currentUser = await authService.getCurrentUser();
-
-    if (currentUser) {
-      // Update UI with user info
-      if (userDisplay) {
-        userDisplay.textContent = currentUser.name || currentUser.email;
-      }
-    } else {
-      // If no user data, try to get from storage as fallback
-      const userData = await chrome.storage.local.get(["user"]);
-
-      if (userData.user) {
-        currentUser = userData.user;
-
-        // Update UI with user info
-        if (userDisplay) {
-          userDisplay.textContent = userData.user.name || userData.user.email;
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Error loading user info:", error);
-  }
-}
-
-// Handle logout
-async function handleLogout() {
-  try {
-    // Show loading state
-    document.body.classList.add("cursor-wait");
-    if (logoutBtn) {
-      logoutBtn.disabled = true;
-    }
-
-    // Call auth service to handle logout
-    const result = await authService.logout();
-
-    // Redirect to login page regardless of result
-    // This ensures user can start fresh even if API logout fails
-    window.location.href = "login.html";
-  } catch (error) {
-    console.error("Logout error:", error);
-    alert("Failed to logout. Please try again.");
-
-    // Reset UI
-    document.body.classList.remove("cursor-wait");
-    if (logoutBtn) {
-      logoutBtn.disabled = false;
-    }
-  }
-}
-
-// Make an authenticated API request
-async function fetchWithAuth(endpoint, options = {}) {
-  return authService.fetchWithAuth(endpoint, options);
-}
-
-// Set up tab switching functionality
+// Setup tab switching
 function setupTabs() {
-  if (!jobsTab || !contactsTab) {
-    return; // Tabs not found
-  }
-
   jobsTab.addEventListener("click", () => {
     // Update tab buttons
     jobsTab.classList.add("border-b-2", "border-primary", "text-primary");
@@ -202,210 +98,439 @@ function setupTabs() {
     contactsTabContent.classList.remove("hidden");
     jobTabContent.classList.add("hidden");
   });
+}
 
-  // Set up logout button
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", handleLogout);
+// Setup button event listeners
+function setupButtonListeners() {
+  // Settings button - Open options page
+  settingsBtn.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  // Extract job data button
+  extractJobBtn.addEventListener("click", async () => {
+    showLoadingState();
+    try {
+      await extractData("job");
+    } catch (error) {
+      console.error("Error extracting job data:", error);
+      showErrorState();
+    }
+  });
+
+  // Refresh job data button
+  refreshJobBtn.addEventListener("click", async () => {
+    showLoadingState();
+    try {
+      await extractData("job");
+    } catch (error) {
+      console.error("Error refreshing job data:", error);
+      showErrorState();
+    }
+  });
+
+  // Send job data button
+  sendJobBtn.addEventListener("click", async () => {
+    if (!currentJobData) return;
+
+    // Disable button to prevent multiple clicks
+    sendJobBtn.disabled = true;
+    sendJobBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Sending...
+    `;
+
+    try {
+      // Send message to background script
+      chrome.runtime.sendMessage(
+        {
+          action: "sendToPursuitPal",
+          dataType: "job",
+          data: currentJobData,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error("Error sending job data:", chrome.runtime.lastError);
+            // Reset button
+            sendJobBtn.disabled = false;
+            sendJobBtn.textContent = "Send to PursuitPal";
+            return;
+          }
+
+          if (response && response.success) {
+            // Close popup after successful send
+            window.close();
+          } else {
+            console.error("Failed to send job data:", response?.error);
+            // Reset button
+            sendJobBtn.disabled = false;
+            sendJobBtn.textContent = "Send to PursuitPal";
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error sending job data:", error);
+      // Reset button
+      sendJobBtn.disabled = false;
+      sendJobBtn.textContent = "Send to PursuitPal";
+    }
+  });
+
+  // Extract contact data button
+  extractContactBtn.addEventListener("click", async () => {
+    showLoadingState();
+    try {
+      await extractData("contact");
+    } catch (error) {
+      console.error("Error extracting contact data:", error);
+      showErrorState();
+    }
+  });
+
+  // Refresh contact data button
+  refreshContactBtn.addEventListener("click", async () => {
+    showLoadingState();
+    try {
+      await extractData("contact");
+    } catch (error) {
+      console.error("Error refreshing contact data:", error);
+      showErrorState();
+    }
+  });
+
+  // Send contact data button
+  sendContactBtn.addEventListener("click", async () => {
+    if (!currentContactData) return;
+
+    // Disable button to prevent multiple clicks
+    sendContactBtn.disabled = true;
+    sendContactBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Sending...
+    `;
+
+    try {
+      // Send message to background script
+      chrome.runtime.sendMessage(
+        {
+          action: "sendToPursuitPal",
+          dataType: "contact",
+          data: currentContactData,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error sending contact data:",
+              chrome.runtime.lastError
+            );
+            // Reset button
+            sendContactBtn.disabled = false;
+            sendContactBtn.textContent = "Send to PursuitPal";
+            return;
+          }
+
+          if (response && response.success) {
+            // Close popup after successful send
+            window.close();
+          } else {
+            console.error("Failed to send contact data:", response?.error);
+            // Reset button
+            sendContactBtn.disabled = false;
+            sendContactBtn.textContent = "Send to PursuitPal";
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error sending contact data:", error);
+      // Reset button
+      sendContactBtn.disabled = false;
+      sendContactBtn.textContent = "Send to PursuitPal";
+    }
+  });
+}
+
+// Load and display data
+async function loadData() {
+  try {
+    // Load job data
+    chrome.runtime.sendMessage({ action: "getJobData" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Error loading job data:", chrome.runtime.lastError);
+        return;
+      }
+
+      if (response && response.data) {
+        currentJobData = response.data;
+        updateJobUI(currentJobData);
+      } else {
+        showNoJobData();
+      }
+    });
+
+    // Load contact data
+    chrome.runtime.sendMessage({ action: "getContactData" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Error loading contact data:", chrome.runtime.lastError);
+        return;
+      }
+
+      if (response && response.data) {
+        currentContactData = response.data;
+        updateContactUI(currentContactData);
+      } else {
+        showNoContactData();
+      }
+    });
+  } catch (error) {
+    console.error("Error loading data:", error);
+    showErrorState();
   }
 }
 
-// Extract job data from the current page
-async function extractJobDataFromPage(tab) {
+// Extract data from current page
+async function extractData(type) {
   try {
-    // Ensure content script is injected
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ["content.js"],
-      });
-    } catch (e) {
-      // Content script injection failed, possibly already injected
-      console.log("Content script may already be injected:", e);
-    }
-
-    // Request content script to extract job data
-    chrome.tabs.sendMessage(
-      tab.id,
-      { action: "extractJobData" },
+    // Send message to background script to extract data
+    chrome.runtime.sendMessage(
+      {
+        action: "extractFromCurrentTab",
+      },
       (response) => {
         if (chrome.runtime.lastError) {
-          // Handle error (content script might not be loaded)
-          console.error("Content script error:", chrome.runtime.lastError);
+          console.error("Error extracting data:", chrome.runtime.lastError);
           showErrorState();
           return;
         }
 
-        if (response && Object.keys(response).length > 0) {
-          // Got job data, update the UI
-          updateUIWithJobData(response);
-          hideLoadingState();
+        if (response && response.success && response.data) {
+          if (type === "job" && response.data.company) {
+            // Job data
+            currentJobData = response.data;
+            updateJobUI(currentJobData);
+            hideLoadingState();
+          } else if (type === "contact" && response.data.name) {
+            // Contact data
+            currentContactData = response.data;
+            updateContactUI(currentContactData);
+            hideLoadingState();
+          } else {
+            // Wrong data type or incomplete data
+            showErrorState();
+          }
         } else {
-          // No job data found
+          // No data extracted
           showErrorState();
         }
       }
     );
   } catch (error) {
-    console.error("Error communicating with content script:", error);
+    console.error("Error extracting data:", error);
     throw error;
   }
 }
 
-// Update UI with job data
-function updateUIWithJobData(jobData) {
-  // Save reference to current job data
-  currentJobData = jobData;
+// Update job UI with data
+function updateJobUI(jobData) {
+  // Set text content for all job data fields
+  jobPosition.textContent = jobData.position || "Untitled Position";
+  jobCompany.textContent = jobData.company || "Unknown Company";
+  jobLocation.textContent = jobData.jobLocation || "Location not specified";
+  jobType.textContent = formatJobType(jobData.jobType) || "Not specified";
 
-  // Populate form fields
-  companyInput.value = jobData.company || "";
-  positionInput.value = jobData.position || "";
-  jobLocationInput.value = jobData.jobLocation || "";
-  jobTypeSelect.value = jobData.jobType || "full-time";
+  // Format salary if available
+  if (jobData.salary && (jobData.salary.min > 0 || jobData.salary.max > 0)) {
+    const currency = getCurrencySymbol(jobData.salary.currency);
 
-  // Salary information
-  if (jobData.salary) {
-    salaryCurrencySelect.value = jobData.salary.currency || "INR";
-    salaryMinInput.value = jobData.salary.min || "";
-    salaryMaxInput.value = jobData.salary.max || "";
-  }
-
-  // Job description preview (truncated)
-  if (jobData.jobDescription) {
-    const preview =
-      jobData.jobDescription.substring(0, 200) +
-      (jobData.jobDescription.length > 200 ? "..." : "");
-    jobDescriptionPreview.innerHTML = `<p>${preview}</p>`;
+    if (jobData.salary.min > 0 && jobData.salary.max > 0) {
+      jobSalary.textContent = `${currency}${formatNumber(
+        jobData.salary.min
+      )} - ${currency}${formatNumber(jobData.salary.max)}`;
+    } else if (jobData.salary.min > 0) {
+      jobSalary.textContent = `${currency}${formatNumber(jobData.salary.min)}+`;
+    } else if (jobData.salary.max > 0) {
+      jobSalary.textContent = `Up to ${currency}${formatNumber(
+        jobData.salary.max
+      )}`;
+    }
   } else {
-    jobDescriptionPreview.innerHTML =
-      '<p class="text-gray-400 italic">No job description found</p>';
+    jobSalary.textContent = "Not specified";
   }
 
-  // Job URL
-  jobUrlInput.value = jobData.jobUrl || "";
+  // Truncate description for preview
+  const descriptionPreview = jobData.jobDescription
+    ? truncateText(jobData.jobDescription, 300)
+    : "No description available";
+  jobDescription.textContent = descriptionPreview;
+
+  // Set URL link
+  if (jobData.jobUrl) {
+    jobUrl.textContent = formatUrl(jobData.jobUrl);
+    jobUrl.href = jobData.jobUrl;
+  } else {
+    jobUrl.textContent = "No URL available";
+    jobUrl.href = "#";
+  }
+
+  // Show job data preview
+  showJobData();
 }
 
-// Get current job data from form fields
-function getJobDataFromForm() {
-  return {
-    company: companyInput.value,
-    position: positionInput.value,
-    jobLocation: jobLocationInput.value,
-    jobType: jobTypeSelect.value,
-    salary: {
-      min: parseInt(salaryMinInput.value) || 0,
-      max: parseInt(salaryMaxInput.value) || 0,
-      currency: salaryCurrencySelect.value,
-    },
-    jobDescription: currentJobData?.jobDescription || "",
-    jobUrl: jobUrlInput.value,
-    priority: prioritySelect.value,
-  };
+// Update contact UI with data
+function updateContactUI(contactData) {
+  // Set contact initials
+  contactInitials.textContent = getInitials(contactData.name);
+
+  // Set text content for all contact data fields
+  contactName.textContent = contactData.name || "Unknown Name";
+  contactPosition.textContent = contactData.position || "Position unknown";
+  contactCompany.textContent = contactData.company || "Company unknown";
+  contactEmail.textContent = contactData.email || "Not available";
+  contactPhone.textContent = contactData.phone || "Not available";
+  contactLocation.textContent = contactData.location || "Location unknown";
+  contactConnections.textContent = contactData.connections || "Not available";
+
+  // Truncate about text for preview
+  const aboutPreview = contactData.about
+    ? truncateText(contactData.about, 150)
+    : "No information available";
+  contactAbout.textContent = aboutPreview;
+
+  // Set URL link
+  if (contactData.profileUrl) {
+    contactUrl.textContent = formatUrl(contactData.profileUrl);
+    contactUrl.href = contactData.profileUrl;
+  } else {
+    contactUrl.textContent = "No URL available";
+    contactUrl.href = "#";
+  }
+
+  // Show contact data preview
+  showContactData();
+}
+
+// Show job data view
+function showJobData() {
+  noJobData.classList.add("hidden");
+  jobDataPreview.classList.remove("hidden");
+  hideLoadingState();
+}
+
+// Show contact data view
+function showContactData() {
+  noContactData.classList.add("hidden");
+  contactDataPreview.classList.remove("hidden");
+  hideLoadingState();
+}
+
+// Show no job data state
+function showNoJobData() {
+  noJobData.classList.remove("hidden");
+  jobDataPreview.classList.add("hidden");
+}
+
+// Show no contact data state
+function showNoContactData() {
+  noContactData.classList.remove("hidden");
+  contactDataPreview.classList.add("hidden");
 }
 
 // Show loading state
 function showLoadingState() {
   loadingState.classList.remove("hidden");
   errorState.classList.add("hidden");
-  jobDataForm.classList.add("hidden");
 }
 
 // Hide loading state
 function hideLoadingState() {
   loadingState.classList.add("hidden");
-  jobDataForm.classList.remove("hidden");
 }
 
 // Show error state
 function showErrorState() {
   loadingState.classList.add("hidden");
   errorState.classList.remove("hidden");
-  jobDataForm.classList.remove("hidden");
+
+  // Hide after 3 seconds
+  setTimeout(() => {
+    errorState.classList.add("hidden");
+  }, 3000);
 }
 
-// Check connection to the job tracker app
-function checkAppConnection() {
-  // Check if we can connect to the application
-  fetch(`${API_BASE_URL}/health`, {
-    method: "GET",
-    mode: "no-cors", // Use no-cors mode since we're just checking connectivity
-  })
-    .then(() => {
-      // If fetch succeeds, we can connect
-      connectionStatus.innerHTML = `
-      <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-      <span>Connected to PursuitPal Tracker</span>
-    `;
-    })
-    .catch(() => {
-      // If fetch fails, we can't connect
-      connectionStatus.innerHTML = `
-      <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-      <span>Not connected to PursuitPal Tracker</span>
-    `;
-    });
+// Helper: Format job type for display
+function formatJobType(type) {
+  if (!type) return "";
+
+  // Capitalize and format job type
+  const formatted = type
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (l) => l.toUpperCase());
+  return formatted;
 }
 
-// Event Listeners
-
-// Settings button - Open options page
-if (settingsBtn) {
-  settingsBtn.addEventListener("click", () => {
-    chrome.runtime.openOptionsPage();
-  });
+// Helper: Format currency symbol
+function getCurrencySymbol(currency) {
+  switch (currency) {
+    case "USD":
+      return "$";
+    case "INR":
+      return "₹";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    case "JPY":
+      return "¥";
+    default:
+      return "$";
+  }
 }
 
-// Refresh button - Fetch job data again
-if (refreshBtn) {
-  refreshBtn.addEventListener("click", async () => {
-    showLoadingState();
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      await extractJobDataFromPage(tab);
-    } catch (error) {
-      console.error("Error refreshing job data:", error);
-      showErrorState();
+// Helper: Format number with commas
+function formatNumber(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// Helper: Truncate text and add ellipsis
+function truncateText(text, maxLength) {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+
+  return text.substring(0, maxLength) + "...";
+}
+
+// Helper: Format URL for display
+function formatUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    let displayUrl = urlObj.hostname;
+
+    // Add path but truncate if too long
+    if (urlObj.pathname && urlObj.pathname !== "/") {
+      const pathname =
+        urlObj.pathname.length > 20
+          ? urlObj.pathname.substring(0, 20) + "..."
+          : urlObj.pathname;
+      displayUrl += pathname;
     }
-  });
+
+    return displayUrl;
+  } catch (e) {
+    return url;
+  }
 }
 
-// Create application button - Open job form in the app with prefilled data
-if (createBtn) {
-  createBtn.addEventListener("click", async () => {
-    const jobData = getJobDataFromForm();
+// Helper: Get initials from name
+function getInitials(name) {
+  if (!name) return "?";
 
-    // Change button to loading state
-    createBtn.innerHTML = `
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Sending to PursuitPal...
-    `;
+  const parts = name.split(" ");
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
 
-    try {
-      // Save job data to storage (to be accessed by the background script)
-      chrome.storage.local.set({ pendingJobApplication: jobData });
-
-      // Construct the URL for the job form
-      const appUrl = `${APP_BASE_URL}/jobs/new`;
-
-      // Create a new tab with the job form
-      chrome.tabs.create({ url: appUrl }, (tab) => {
-        // We won't need to do anything else here as the background script will handle
-        // injecting the data after the new tab loads (see background.js)
-      });
-    } catch (error) {
-      console.error("Error sending job data:", error);
-
-      // Reset button
-      createBtn.innerHTML = "Send to PursuitPal Tracker";
-
-      // Show error notification
-      errorState.classList.remove("hidden");
-      errorState.textContent = "Failed to send job data. Please try again.";
-    }
-  });
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }

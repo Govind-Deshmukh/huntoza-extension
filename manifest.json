@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "PursuitPal",
   "version": "1.0",
-  "description": "Track your job hunt with secure login - Extract job and contact details from job postings and LinkedIn",
-  "permissions": ["activeTab", "storage", "scripting", "tabs", "alarms"],
+  "description": "Extract job details and LinkedIn contacts to track in your PursuitPal job hunt dashboard",
+  "permissions": ["activeTab", "storage", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",
@@ -21,19 +21,12 @@
     }
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "icons": {
     "16": "images/icon.png",
     "48": "images/icon.png",
     "128": "images/icon.png"
   },
-  "options_page": "options.html",
-  "web_accessible_resources": [
-    {
-      "resources": ["auth-service.js"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  "options_page": "options.html"
 }

@@ -1,31 +1,73 @@
 /**
- * PursuitPal - Self-Contained Content Script
+ * PursuitPal - Content Script
  *
- * This script runs on any web page and attempts to extract job posting details.
- * It has specialized extractors for common job platforms like LinkedIn, Indeed, etc.
- * It doesn't depend on auth-service.js and works independently.
+ * This script extracts job details from job boards and contact info from LinkedIn profiles.
+ * It runs on any page and determines what type of data to extract based on the URL.
  */
 
-// Main function to extract job data from the page
+// Main function to extract data from the current page
+function extractData() {
+  const url = window.location.href.toLowerCase();
+
+  // Determine if we're on a job page or a LinkedIn profile
+  if (isJobPostingPage(url)) {
+    return extractJobData();
+  } else if (isLinkedInProfilePage(url)) {
+    return extractLinkedInProfile();
+  }
+
+  return null;
+}
+
+// Detect if the current page is a job posting
+function isJobPostingPage(url) {
+  const jobPatterns = [
+    /linkedin\.com\/jobs/i,
+    /indeed\.com\/viewjob/i,
+    /glassdoor\.com\/job/i,
+    /monster\.com\/job/i,
+    /naukri\.com/i,
+    /ziprecruiter\.com\/jobs/i,
+    /careers\./i,
+    /jobs\./i,
+    /\/jobs?\//i,
+    /\/careers?\//i,
+    /\/job\-details/i,
+    /\/posting/i,
+    /lever\.co\/[^\/]+\/jobs/i,
+    /greenhouse\.io\/jobs/i,
+  ];
+
+  return jobPatterns.some((pattern) => pattern.test(url));
+}
+
+// Detect if the current page is a LinkedIn profile
+function isLinkedInProfilePage(url) {
+  return /linkedin\.com\/in\//i.test(url);
+}
+
+// Extract job data from various job boards
 function extractJobData() {
   // Determine which job platform we're on
   const platform = detectJobPlatform();
 
   let jobData;
 
-  // Use platform-specific extractors when available
+  // Use platform-specific extractors
   if (platform === "linkedin") {
     jobData = extractLinkedInJobData();
   } else if (platform === "indeed") {
     jobData = extractIndeedJobData();
   } else if (platform === "glassdoor") {
     jobData = extractGlassdoorJobData();
+  } else if (platform === "naukri") {
+    jobData = extractNaukriJobData();
   } else {
     // Fall back to generic extraction for other sites
     jobData = extractGenericJobData();
   }
 
-  // Ensure all fields are present (even if empty)
+  // Ensure all fields are present
   jobData = {
     company: jobData.company || "",
     position: jobData.position || "",
@@ -38,9 +80,10 @@ function extractJobData() {
     },
     jobDescription: jobData.jobDescription || "",
     jobUrl: window.location.href,
+    dateExtracted: new Date().toISOString(),
   };
 
-  // Save data to extension storage via a message to background script
+  // Send message to background script
   chrome.runtime.sendMessage({
     action: "saveJobData",
     data: jobData,
@@ -49,7 +92,7 @@ function extractJobData() {
   return jobData;
 }
 
-// Detect the job platform based on URL and page structure
+// Detect the job platform based on URL
 function detectJobPlatform() {
   const url = window.location.href.toLowerCase();
 
@@ -59,60 +102,43 @@ function detectJobPlatform() {
     return "indeed";
   } else if (url.includes("glassdoor.com")) {
     return "glassdoor";
-  } else if (url.includes("greenhouse.io")) {
-    return "greenhouse";
-  } else if (url.includes("lever.co")) {
-    return "lever";
+  } else if (url.includes("naukri.com")) {
+    return "naukri";
+  } else if (url.includes("monster.com")) {
+    return "monster";
   }
 
   return "generic";
 }
 
-// LinkedIn-specific extraction
+// LinkedIn-specific job extraction
 function extractLinkedInJobData() {
   const jobData = {
     company: "",
     position: "",
     jobLocation: "",
     jobType: "",
-    salary: {
-      min: 0,
-      max: 0,
-      currency: "INR",
-    },
+    salary: { min: 0, max: 0, currency: "INR" },
     jobDescription: "",
   };
 
-  // Job Title - using the updated LinkedIn selectors
-  // First, try the new structure
-  const jobTitleElement = document.querySelector("h1.t-24.t-bold.inline");
+  // Job Title - using the LinkedIn selectors
+  const jobTitleElement =
+    document.querySelector("h1.t-24.t-bold.inline") ||
+    document.querySelector(
+      ".job-details-jobs-unified-top-card__job-title h1"
+    ) ||
+    document.querySelector(".topcard__title") ||
+    document.querySelector(".jobs-unified-top-card__job-title");
+
   if (jobTitleElement) {
-    // Check if there's a link inside the h1
     const titleLink = jobTitleElement.querySelector("a");
     jobData.position = titleLink
       ? titleLink.textContent.trim()
       : jobTitleElement.textContent.trim();
   }
 
-  // Fallbacks for other LinkedIn title structures
-  if (!jobData.position) {
-    const altTitleSelectors = [
-      ".job-details-jobs-unified-top-card__job-title h1",
-      ".topcard__title",
-      ".jobs-unified-top-card__job-title",
-      ".jobs-details-top-card__job-title",
-    ];
-
-    for (const selector of altTitleSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        jobData.position = element.textContent.trim();
-        break;
-      }
-    }
-  }
-
-  // Company Name - updated selectors for LinkedIn
+  // Company Name
   const companySelectors = [
     ".jobs-unified-top-card__company-name a",
     "a[href*='/company/']",
@@ -129,7 +155,7 @@ function extractLinkedInJobData() {
     }
   }
 
-  // Job Location - updated selectors with new class paths
+  // Job Location
   const locationSelectors = [
     ".tvm__text:first-of-type",
     "span.topcard__flavor--bullet",
@@ -142,7 +168,6 @@ function extractLinkedInJobData() {
     const elements = document.querySelectorAll(selector);
     for (const element of elements) {
       const text = element.textContent.trim();
-      // Check if text contains location patterns and doesn't contain timing information
       if (text && !text.match(/ago|week|day|hour|minute|second|apply/i)) {
         jobData.jobLocation = text.split("·")[0].trim();
         break;
@@ -151,7 +176,7 @@ function extractLinkedInJobData() {
     if (jobData.jobLocation) break;
   }
 
-  // Job Description - using the specific LinkedIn class
+  // Job Description
   const descriptionSelectors = [
     ".jobs-description__content .jobs-description-content__text--stretch",
     "#job-details",
@@ -167,7 +192,7 @@ function extractLinkedInJobData() {
     }
   }
 
-  // Job Type - extract from description text
+  // Job Type - extract from description
   if (jobData.jobDescription) {
     if (jobData.jobDescription.match(/full[- ]time|ft\b/i)) {
       jobData.jobType = "full-time";
@@ -193,22 +218,18 @@ function extractLinkedInJobData() {
     );
 
     if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
-      // Extract and clean up the numbers
       let min = salaryMatch[1].replace(/[,]/g, "");
       let max = salaryMatch[2].replace(/[,]/g, "");
 
-      // Convert to numbers
       min = parseFloat(min);
       max = parseFloat(max);
 
-      // Check for 'k' suffix in the match
       const isThousands = salaryMatch[0].toLowerCase().includes("k");
       if (isThousands) {
         min *= 1000;
         max *= 1000;
       }
 
-      // Determine currency
       let currency = "INR";
       if (salaryMatch[0].includes("$")) {
         currency = "USD";
@@ -222,11 +243,7 @@ function extractLinkedInJobData() {
         currency = "JPY";
       }
 
-      jobData.salary = {
-        min,
-        max,
-        currency,
-      };
+      jobData.salary = { min, max, currency };
     }
   }
 
@@ -240,11 +257,7 @@ function extractIndeedJobData() {
     position: "",
     jobLocation: "",
     jobType: "",
-    salary: {
-      min: 0,
-      max: 0,
-      currency: "INR",
-    },
+    salary: { min: 0, max: 0, currency: "INR" },
     jobDescription: "",
   };
 
@@ -278,7 +291,7 @@ function extractIndeedJobData() {
     jobData.jobDescription = descriptionElement.textContent.trim();
   }
 
-  // Extract job type from description
+  // Job Type from description
   if (jobData.jobDescription) {
     if (jobData.jobDescription.match(/full[- ]time|ft\b/i)) {
       jobData.jobType = "full-time";
@@ -295,16 +308,16 @@ function extractIndeedJobData() {
     }
   }
 
-  // Attempt to extract salary information
+  // Salary information
   const salaryText = document.querySelector(
     '[data-testid="attribute_snippet_testid"]'
   );
   if (
-    (salaryText && salaryText.textContent.includes("$")) ||
-    salaryText.textContent.includes("₹")
+    salaryText &&
+    (salaryText.textContent.includes("$") ||
+      salaryText.textContent.includes("₹"))
   ) {
     const salaryStr = salaryText.textContent;
-    // Extract min and max values
     const salaryMatch = salaryStr.match(
       /(?:[$₹€£¥])\s*(\d[\d,.]+)(?:k)?(?:\s*-\s*|\s*to\s*|\s*a\s*)(?:[$₹€£¥])?\s*(\d[\d,.]+)(?:k)?/i
     );
@@ -333,11 +346,70 @@ function extractIndeedJobData() {
         currency = "GBP";
       }
 
-      jobData.salary = {
-        min,
-        max,
-        currency,
-      };
+      jobData.salary = { min, max, currency };
+    }
+  }
+
+  return jobData;
+}
+
+// Naukri-specific extraction (Added new)
+function extractNaukriJobData() {
+  const jobData = {
+    company: "",
+    position: "",
+    jobLocation: "",
+    jobType: "",
+    salary: { min: 0, max: 0, currency: "INR" },
+    jobDescription: "",
+  };
+
+  // Job Title
+  const jobTitleElement =
+    document.querySelector(".jd-header-title") ||
+    document.querySelector(".jd-top h1") ||
+    document.querySelector(".jobTitle");
+  if (jobTitleElement) {
+    jobData.position = jobTitleElement.textContent.trim();
+  }
+
+  // Company Name
+  const companyElement =
+    document.querySelector(".jd-header-comp-name") ||
+    document.querySelector(".jd-comp-name") ||
+    document.querySelector(".comp-name");
+  if (companyElement) {
+    jobData.company = companyElement.textContent.trim();
+  }
+
+  // Job Location
+  const locationElement =
+    document.querySelector(".jd-location") || document.querySelector(".loc");
+  if (locationElement) {
+    jobData.jobLocation = locationElement.textContent.trim();
+  }
+
+  // Job Description
+  const descriptionElement =
+    document.querySelector(".jd-desc") || document.querySelector(".job-desc");
+  if (descriptionElement) {
+    jobData.jobDescription = descriptionElement.textContent.trim();
+  }
+
+  // Salary extraction
+  const salaryElement =
+    document.querySelector(".salary-estimate-text") ||
+    document.querySelector(".sal-range");
+  if (salaryElement) {
+    const salaryText = salaryElement.textContent.trim();
+    // Naukri usually shows salary like "₹ 8-12 Lacs PA" or "₹ 8-12 LPA"
+    const salaryMatch = salaryText.match(
+      /(\d+)(?:\s*-\s*|\s*to\s*)(\d+)(?:\s*lacs|\s*lpa)/i
+    );
+    if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
+      const min = parseFloat(salaryMatch[1]) * 100000; // Convert lacs to INR
+      const max = parseFloat(salaryMatch[2]) * 100000;
+      jobData.salary = { min, max, currency: "INR" };
     }
   }
 
@@ -351,11 +423,7 @@ function extractGlassdoorJobData() {
     position: "",
     jobLocation: "",
     jobType: "",
-    salary: {
-      min: 0,
-      max: 0,
-      currency: "INR",
-    },
+    salary: { min: 0, max: 0, currency: "INR" },
     jobDescription: "",
   };
 
@@ -383,7 +451,7 @@ function extractGlassdoorJobData() {
     jobData.jobDescription = descriptionElement.textContent.trim();
   }
 
-  // Extract job type and salary from metadata or description
+  // Extract job type and salary from description
   if (jobData.jobDescription) {
     // Job Type extraction
     if (jobData.jobDescription.match(/full[- ]time|ft\b/i)) {
@@ -430,11 +498,7 @@ function extractGlassdoorJobData() {
         currency = "JPY";
       }
 
-      jobData.salary = {
-        min,
-        max,
-        currency,
-      };
+      jobData.salary = { min, max, currency };
     }
   }
 
@@ -443,7 +507,7 @@ function extractGlassdoorJobData() {
 
 // Generic function for other job sites
 function extractGenericJobData() {
-  // Various selectors and strategies to find company name
+  // Various selectors to find company name
   const possibleCompanySelectors = [
     ".company-name",
     ".employer-name",
@@ -457,7 +521,7 @@ function extractGenericJobData() {
     ".employer-name",
   ];
 
-  // Try to find company name using common selectors
+  // Try to find company name
   let company = "";
   for (const selector of possibleCompanySelectors) {
     const element = document.querySelector(selector);
@@ -472,14 +536,6 @@ function extractGenericJobData() {
     const metaCompany = document.querySelector('meta[property="og:site_name"]');
     if (metaCompany) {
       company = metaCompany.getAttribute("content");
-    }
-  }
-
-  // Fallback: Try to extract from page title
-  if (!company) {
-    const title = document.title;
-    if (title.includes(" at ")) {
-      company = title.split(" at ")[1].split(" - ")[0].trim();
     }
   }
 
@@ -498,35 +554,13 @@ function extractGenericJobData() {
     "h1", // General fallback
   ];
 
-  // Try to find job title using common selectors
+  // Try to find job title
   let position = "";
   for (const selector of possibleTitleSelectors) {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       position = element.textContent.trim();
       break;
-    }
-  }
-
-  // Fallback: Look for job title in metadata
-  if (!position) {
-    const metaTitle = document.querySelector('meta[property="og:title"]');
-    if (metaTitle) {
-      const title = metaTitle.getAttribute("content");
-      // Try to clean up the title if it contains company info
-      if (title.includes(" at ")) {
-        position = title.split(" at ")[0].trim();
-      } else {
-        position = title;
-      }
-    }
-  }
-
-  // Fallback: Use the page title
-  if (!position) {
-    const title = document.title;
-    if (title.includes(" at ")) {
-      position = title.split(" at ")[0].trim();
     }
   }
 
@@ -540,30 +574,16 @@ function extractGenericJobData() {
     ".jobsearch-JobInfoHeader-subtitle .jobsearch-JobInfoHeader-locationText",
     ".location",
     ".at-location",
-    ".location",
     ".posting-categories .location",
   ];
 
-  // Try to find location using common selectors
+  // Try to find location
   let jobLocation = "";
   for (const selector of possibleLocationSelectors) {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       jobLocation = element.textContent.trim();
       break;
-    }
-  }
-
-  // Fallback: Try to look for common location patterns in the page text
-  if (!jobLocation) {
-    const pageText = document.body.innerText;
-    // Look for location patterns like "Location: New York" or "Location: Remote"
-    const locationPattern = /location:?\s*([^,\n\r]+)/i;
-    const locationMatch = pageText.match(locationPattern);
-    if (locationMatch && locationMatch[1]) {
-      jobLocation = locationMatch[1].trim();
-    } else if (pageText.match(/remote|work from home|wfh/i)) {
-      jobLocation = "Remote";
     }
   }
 
@@ -581,7 +601,7 @@ function extractGenericJobData() {
     ".posting-detail-body",
   ];
 
-  // Try to find description using common selectors
+  // Try to find description
   let jobDescription = "";
   for (const selector of possibleDescriptionSelectors) {
     const element = document.querySelector(selector);
@@ -591,24 +611,10 @@ function extractGenericJobData() {
     }
   }
 
-  // Fallback: Try to find any large text block that might be a job description
-  if (!jobDescription) {
-    const paragraphs = document.querySelectorAll("p");
-    if (paragraphs.length > 3) {
-      // Concatenate several paragraphs that might be the job description
-      jobDescription = Array.from(paragraphs)
-        .slice(0, Math.min(10, paragraphs.length)) // Take up to 10 paragraphs
-        .map((p) => p.textContent.trim())
-        .filter((text) => text.length > 100) // Only consider substantial paragraphs
-        .join("\n\n");
-    }
-  }
-
-  // Try to find job type text on the page
+  // Try to find job type
   const pageText = document.body.innerText;
-
-  // Common job type patterns
   let jobType = "full-time"; // Default
+
   if (pageText.match(/full[- ]time|ft\b/i)) jobType = "full-time";
   else if (pageText.match(/part[- ]time|pt\b/i)) jobType = "part-time";
   else if (pageText.match(/\bcontract\b|\bcontractor\b/i)) jobType = "contract";
@@ -623,35 +629,29 @@ function extractGenericJobData() {
     currency: "INR", // Default currency
   };
 
-  // Common salary patterns
-  // Match patterns like "$50,000-$70,000" or "₹5,00,000 - ₹7,00,000" or "50k-70k"
+  // Try to extract salary information
   const salaryRangePattern =
     /(?:[$₹€£¥])\s*(\d[\d,.]+)(?:k)?(?:\s*-\s*|\s*to\s*)(?:[$₹€£¥])?\s*(\d[\d,.]+)(?:k)?/i;
   const salaryMatch = pageText.match(salaryRangePattern);
 
   if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
-    // Extract min and max values
     let min = salaryMatch[1].replace(/[,]/g, "");
     let max = salaryMatch[2].replace(/[,]/g, "");
 
-    // Convert to numbers
     min = parseFloat(min);
     max = parseFloat(max);
 
-    // Check if values have 'k' suffix and multiply
     if (salaryMatch[0].toLowerCase().includes("k")) {
       min *= 1000;
       max *= 1000;
     }
 
-    // Detect currency
     if (salaryMatch[0].includes("$")) salary.currency = "USD";
     else if (salaryMatch[0].includes("₹")) salary.currency = "INR";
     else if (salaryMatch[0].includes("€")) salary.currency = "EUR";
     else if (salaryMatch[0].includes("£")) salary.currency = "GBP";
     else if (salaryMatch[0].includes("¥")) salary.currency = "JPY";
 
-    // Update salary object
     salary.min = min;
     salary.max = max;
   }
@@ -666,24 +666,129 @@ function extractGenericJobData() {
   };
 }
 
-// Extract job data when the page is fully loaded
-window.addEventListener("load", () => {
-  // Wait a bit longer for LinkedIn and similar sites that load content dynamically
-  setTimeout(() => {
-    extractJobData();
-  }, 2000);
-});
+// Extract LinkedIn profile data
+function extractLinkedInProfile() {
+  const contactData = {
+    name: "",
+    email: "",
+    phone: "",
+    position: "",
+    company: "",
+    location: "",
+    profileUrl: window.location.href,
+    connections: "",
+    about: "",
+    experience: [],
+  };
 
-// Listen for messages from the popup or background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "extractJobData") {
-    const jobData = extractJobData();
-    sendResponse(jobData);
-  } else if (request.action === "extractContactData") {
-    // Future support for LinkedIn contact extraction
-    // This is a placeholder for future functionality
-    const contactData = { name: "Not implemented yet" };
-    sendResponse(contactData);
+  // Name extraction
+  const nameElement =
+    document.querySelector(".text-heading-xlarge") ||
+    document.querySelector(".pv-top-card-section__name") ||
+    document.querySelector("h1.artdeco-entity-lockup__title");
+  if (nameElement) {
+    contactData.name = nameElement.textContent.trim();
   }
-  return true; // Keep the message channel open for async response
-});
+
+  // Position & Company
+  const titleElement =
+    document.querySelector(".text-body-medium.break-words") ||
+    document.querySelector(".pv-top-card-section__headline") ||
+    document.querySelector(".artdeco-entity-lockup__subtitle");
+  if (titleElement) {
+    const titleText = titleElement.textContent.trim();
+    // Try to parse out position and company if format is "Position at Company"
+    const positionMatch = titleText.match(/(.+?)(?:\s+at\s+(.+))?$/i);
+    if (positionMatch) {
+      contactData.position = positionMatch[1]?.trim() || "";
+      contactData.company = positionMatch[2]?.trim() || "";
+    } else {
+      contactData.position = titleText;
+    }
+  }
+
+  // Location
+  const locationElement =
+    document.querySelector(
+      ".text-body-small.inline.t-black--light.break-words"
+    ) ||
+    document.querySelector(".pv-top-card-section__location") ||
+    document.querySelector(".artdeco-entity-lockup__caption");
+  if (locationElement) {
+    contactData.location = locationElement.textContent.trim();
+  }
+
+  // About section
+  const aboutElement = document.querySelector(
+    "#about ~ .display-flex .pv-shared-text-with-see-more"
+  );
+  if (aboutElement) {
+    contactData.about = aboutElement.textContent.trim();
+  }
+
+  // Connections
+  const connectionsElement =
+    document.querySelector(
+      ".pv-top-card--list.inline-flex li:first-child .text-body-small"
+    ) || document.querySelector(".pv-top-card-section__connections");
+  if (connectionsElement) {
+    contactData.connections = connectionsElement.textContent.trim();
+  }
+
+  // Experience - Try to get current job
+  const experienceSections = document.querySelectorAll(
+    "#experience ~ .pvs-list__outer-container .pvs-entity"
+  );
+  if (experienceSections.length > 0) {
+    contactData.experience = Array.from(experienceSections)
+      .slice(0, 3)
+      .map((section) => {
+        const roleElement = section.querySelector(".t-bold span");
+        const companyElement = section.querySelector(
+          ".t-normal.t-black--light span"
+        );
+        const dateElement = section.querySelector(
+          ".t-normal.t-black--light .pvs-entity__caption-wrapper"
+        );
+
+        return {
+          role: roleElement ? roleElement.textContent.trim() : "",
+          company: companyElement ? companyElement.textContent.trim() : "",
+          date: dateElement ? dateElement.textContent.trim() : "",
+        };
+      });
+  }
+
+  // Try to find email in the page content
+  // This is difficult as LinkedIn hides contact info, but we can try
+  const pageText = document.body.innerText;
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+  const emailMatches = pageText.match(emailRegex);
+
+  if (emailMatches && emailMatches.length > 0) {
+    // Filter out common LinkedIn emails that might be in the page
+    const filteredEmails = emailMatches.filter(
+      (email) => !email.includes("linkedin.com")
+    );
+    if (filteredEmails.length > 0) {
+      contactData.email = filteredEmails[0]; // Use the first email found
+    }
+  }
+
+  // Try to find phone in the page content
+  const phoneRegex =
+    /(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
+  const phoneMatches = pageText.match(phoneRegex);
+
+  if (phoneMatches && phoneMatches.length > 0) {
+    contactData.phone = phoneMatches[0]; // Use the first phone number found
+  }
+
+  // Send message to background script
+  chrome.runtime.sendMessage({
+    action: "saveContactData",
+    data: contactData,
+  });
+
+  return contactData;
+}
