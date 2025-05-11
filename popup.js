@@ -40,7 +40,7 @@ let currentJobData = null;
 // Current user data
 let currentUser = null;
 
-// API Base URL - define this directly rather than relying on config
+// Hardcoded URLs - no more config dependency
 const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 const APP_BASE_URL = "https://pursuitpal.app";
 

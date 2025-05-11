@@ -32,7 +32,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["config.js", "auth-service.js"],
+      "resources": ["auth-service.js"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -10,27 +10,8 @@
 
 class AuthService {
   constructor() {
-    // Define default API URL without reliance on window/config
+    // Hardcoded API URL without reliance on config
     this.API_BASE_URL = "https://api.pursuitpal.app/api/v1";
-
-    // Try to get config if available (will only work in UI contexts, not in service worker)
-    try {
-      if (
-        typeof window !== "undefined" &&
-        (window.configLoader || window.appConfig)
-      ) {
-        const config = window.configLoader
-          ? window.configLoader.getConfig()
-          : window.appConfig;
-        if (config && config.apiBaseUrl) {
-          this.API_BASE_URL = config.apiBaseUrl;
-        }
-      }
-    } catch (error) {
-      console.error("Config loading error in AuthService:", error);
-      // Continue with default API_BASE_URL
-    }
-
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];

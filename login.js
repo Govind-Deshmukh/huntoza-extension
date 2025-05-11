@@ -8,7 +8,7 @@
  * - Redirection after successful login
  */
 
-// API Base URL - defined directly to avoid config dependency
+// Hardcoded URLs - no config dependency
 const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 const APP_BASE_URL = "https://pursuitpal.app";
 

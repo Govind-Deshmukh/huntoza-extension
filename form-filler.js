@@ -6,19 +6,15 @@
  */
 
 (function () {
-  // Get configuration if available
-  const config = window.configLoader
-    ? window.configLoader.getConfig()
-    : window.appConfig;
+  // Hardcoded base URL
+  const APP_BASE_URL = "https://pursuitpal.app";
 
-  // Check if we're on the job form page using config if available
+  // Check if we're on the job form page
   const isJobFormPage = () => {
-    if (config) {
-      return window.location.href.includes(
-        config.getAppUrl(config.routes.jobs.new)
-      );
-    }
-    return window.location.href.includes("/jobs/new");
+    return (
+      window.location.href.includes(`${APP_BASE_URL}/jobs/new`) ||
+      window.location.href.includes("pursuitpal.app/jobs/new")
+    );
   };
 
   if (!isJobFormPage()) {
@@ -160,9 +156,8 @@
 
   // Show feedback notification to the user
   function showFeedbackToUser(message) {
-    // Get primary color from config if available
-    const primaryColor =
-      config && config.styles ? config.styles.primaryColor : "#4CAF50";
+    // Hardcoded primary color
+    const primaryColor = "#552dec";
 
     // Create notification element
     const notification = document.createElement("div");

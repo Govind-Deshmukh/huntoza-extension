@@ -1,8 +1,9 @@
 /**
- * PursuitPal - Enhanced Content Script
+ * PursuitPal - Self-Contained Content Script
  *
  * This script runs on any web page and attempts to extract job posting details.
  * It has specialized extractors for common job platforms like LinkedIn, Indeed, etc.
+ * It doesn't depend on auth-service.js and works independently.
  */
 
 // Main function to extract job data from the page
@@ -39,7 +40,7 @@ function extractJobData() {
     jobUrl: window.location.href,
   };
 
-  // Save data to extension storage
+  // Save data to extension storage via a message to background script
   chrome.runtime.sendMessage({
     action: "saveJobData",
     data: jobData,
