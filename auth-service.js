@@ -1,89 +1,25 @@
 /**
- * PursuitPal - Enhanced Authentication Service
+ * PursuitPal - Authentication Service
  *
  * A central service to handle authentication across the extension:
  * - Token management (access and refresh tokens)
- * - Authenticated API requests with improved security
+ * - Authenticated API requests
  * - Authentication status checking
  * - Secure logout
- * - CSRF protection
- * - Improved error handling
  */
 
 class AuthService {
   constructor() {
-    // Hardcoded API URL
-    this.API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+    // Get configuration
+    this.config = window.configLoader
+      ? window.configLoader.getConfig()
+      : window.appConfig;
+    this.API_BASE_URL = this.config
+      ? this.config.apiBaseUrl
+      : "https://api.pursuitpal.app/api/v1";
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];
-
-    // Default token expiration time (1 hour in milliseconds)
-    this.TOKEN_EXPIRY_DURATION = 3600 * 1000;
-
-    // Initialize CSRF protection
-    this.csrfToken = null;
-    this.initCsrfProtection();
-  }
-
-  /**
-   * Initialize CSRF protection by getting a token from the server
-   * This helps prevent cross-site request forgery attacks
-   */
-  async initCsrfProtection() {
-    try {
-      // Try to get a CSRF token from storage first
-      const storedToken = await this.getStoredCsrfToken();
-      if (storedToken) {
-        this.csrfToken = storedToken;
-        return;
-      }
-
-      // If no stored token, request a new one
-      const response = await fetch(`${this.API_BASE_URL}/auth/csrf-token`, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.csrfToken) {
-          this.csrfToken = data.csrfToken;
-          await this.storeCsrfToken(data.csrfToken);
-        }
-      }
-    } catch (error) {
-      console.warn("CSRF token initialization failed:", error);
-      // Non-blocking error - the app can still work without CSRF protection
-    }
-  }
-
-  /**
-   * Get stored CSRF token
-   */
-  async getStoredCsrfToken() {
-    const result = await chrome.storage.local.get([
-      "csrfToken",
-      "csrfTokenExpiry",
-    ]);
-    if (
-      result.csrfToken &&
-      result.csrfTokenExpiry &&
-      Date.now() < result.csrfTokenExpiry
-    ) {
-      return result.csrfToken;
-    }
-    return null;
-  }
-
-  /**
-   * Store CSRF token with expiration
-   */
-  async storeCsrfToken(token) {
-    await chrome.storage.local.set({
-      csrfToken: token,
-      csrfTokenExpiry: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    });
   }
 
   /**
@@ -118,19 +54,15 @@ class AuthService {
   }
 
   /**
-   * Get the current user data with enhanced security
+   * Get the current user data
    * @returns {Promise<Object|null>} User data or null if not authenticated
    */
   async getCurrentUser() {
     try {
-      // First check if we have a cached user and it's not expired
+      // First check if we have a cached user
       const authData = await this.getAuthData();
-      const userDataExpiry = await this.getUserDataExpiry();
 
-      // Check if user data is still valid (not older than 15 minutes)
-      const USER_DATA_MAX_AGE = 15 * 60 * 1000; // 15 minutes
-
-      if (authData.user && userDataExpiry && Date.now() < userDataExpiry) {
+      if (authData.user) {
         return authData.user;
       }
 
@@ -139,18 +71,17 @@ class AuthService {
         // Fetch current user data from the API
         const response = await fetch(`${this.API_BASE_URL}/auth/me`, {
           method: "GET",
-          headers: this.getSecureHeaders(authData.token),
-          credentials: "include", // Include cookies if available
+          headers: {
+            Authorization: `Bearer ${authData.token}`,
+            "Content-Type": "application/json",
+          },
         });
 
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.user) {
-            // Update stored user data with expiration
-            await chrome.storage.local.set({
-              user: data.user,
-              userDataExpiry: Date.now() + USER_DATA_MAX_AGE,
-            });
+            // Update stored user data
+            await chrome.storage.local.set({ user: data.user });
             return data.user;
           }
         }
@@ -176,15 +107,7 @@ class AuthService {
   }
 
   /**
-   * Get user data expiry timestamp from storage
-   */
-  async getUserDataExpiry() {
-    const result = await chrome.storage.local.get(["userDataExpiry"]);
-    return result.userDataExpiry;
-  }
-
-  /**
-   * Make an authenticated API request with improved security and error handling
+   * Make an authenticated API request
    * @param {string} endpoint - API endpoint (without base URL)
    * @param {Object} options - Fetch options
    * @returns {Promise<Object>} Response data
@@ -200,18 +123,20 @@ class AuthService {
       // Get current auth data
       const authData = await this.getAuthData();
 
-      // Set up request headers with CSRF protection
+      // Set up request headers
       const headers = {
-        ...this.getSecureHeaders(authData.token),
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authData.token}`,
         ...options.headers,
       };
 
       // Make the API request
-      const requestUrl = `${this.API_BASE_URL}${endpoint}`;
+      const requestUrl = this.config
+        ? this.config.getApiUrl(endpoint)
+        : `${this.API_BASE_URL}${endpoint}`;
       const response = await fetch(requestUrl, {
         ...options,
         headers,
-        credentials: "include", // Include cookies if available
       });
 
       // If unauthorized, try to refresh token and retry
@@ -227,24 +152,8 @@ class AuthService {
         }
       }
 
-      // Handle CSRF token errors
-      if (response.status === 403) {
-        const data = await response.json();
-        if (data.error && data.error.includes("CSRF")) {
-          // Get a new CSRF token
-          await this.initCsrfProtection();
-          // Retry the request
-          return this.fetchWithAuth(endpoint, options);
-        }
-      }
-
       // Parse response
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        throw new Error("Invalid response from server");
-      }
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || "API request failed");
@@ -258,7 +167,7 @@ class AuthService {
   }
 
   /**
-   * Refresh the access token with enhanced security
+   * Refresh the access token
    * @returns {Promise<Object>} New tokens
    */
   async refreshToken() {
@@ -279,35 +188,37 @@ class AuthService {
             throw new Error("No refresh token available");
           }
 
-          // Get refresh token endpoint
-          const refreshUrl = `${this.API_BASE_URL}/auth/refresh-token`;
+          // Get refresh token endpoint from config
+          const refreshUrl = this.config
+            ? this.config.getApiUrl("auth/refresh-token")
+            : `${this.API_BASE_URL}/auth/refresh-token`;
 
-          // Call refresh token API with CSRF protection
+          // Call refresh token API
           const response = await fetch(refreshUrl, {
             method: "POST",
-            headers: this.getSecureHeaders(),
-            credentials: "include", // Include cookies if available
+            headers: {
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({ refreshToken: authData.refreshToken }),
           });
 
-          let data;
-          try {
-            data = await response.json();
-          } catch (e) {
-            throw new Error(
-              "Invalid response from server during token refresh"
-            );
-          }
+          const data = await response.json();
 
           if (!response.ok || !data.success) {
             throw new Error(data.message || "Failed to refresh token");
           }
 
-          // Save new tokens securely
+          // Get token expiry from config or use default
+          const tokenExpiryDuration =
+            this.config && this.config.auth
+              ? this.config.auth.tokenExpiry
+              : 3600 * 1000;
+
+          // Save new tokens
           await chrome.storage.local.set({
             token: data.token,
             refreshToken: data.refreshToken,
-            tokenExpiry: Date.now() + this.TOKEN_EXPIRY_DURATION,
+            tokenExpiry: Date.now() + tokenExpiryDuration, // Token valid based on config
           });
 
           resolve({ token: data.token, refreshToken: data.refreshToken });
@@ -327,30 +238,6 @@ class AuthService {
   }
 
   /**
-   * Get secure headers for API requests
-   * @param {string} token - Optional auth token
-   * @returns {Object} Headers object
-   */
-  getSecureHeaders(token = null) {
-    const headers = {
-      "Content-Type": "application/json",
-      "X-Requested-With": "XMLHttpRequest", // Helps prevent CSRF
-    };
-
-    // Add auth token if provided
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    // Add CSRF token if available
-    if (this.csrfToken) {
-      headers["X-CSRF-Token"] = this.csrfToken;
-    }
-
-    return headers;
-  }
-
-  /**
    * Get stored authentication data
    * @returns {Promise<Object>} Auth data
    */
@@ -364,8 +251,8 @@ class AuthService {
   }
 
   /**
-   * Log the user out with improved security
-   * @returns {Promise<Object>} Success status
+   * Log the user out
+   * @returns {Promise<void>}
    */
   async logout() {
     try {
@@ -373,13 +260,17 @@ class AuthService {
       const authData = await this.getAuthData();
       if (authData.token) {
         try {
-          const logoutUrl = `${this.API_BASE_URL}/auth/logout`;
+          // Get logout endpoint from config
+          const logoutUrl = this.config
+            ? this.config.getApiUrl("auth/logout")
+            : `${this.API_BASE_URL}/auth/logout`;
 
-          // Use CSRF protection for logout
           await fetch(logoutUrl, {
             method: "POST",
-            headers: this.getSecureHeaders(authData.token),
-            credentials: "include", // Include cookies
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authData.token}`,
+            },
             body: JSON.stringify({ refreshToken: authData.refreshToken }),
           });
         } catch (error) {
@@ -390,133 +281,24 @@ class AuthService {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Always clear all local auth data regardless of API success
+      // Always clear local auth data regardless of API success
       await chrome.storage.local.remove([
         "token",
         "refreshToken",
         "tokenExpiry",
         "user",
-        "userDataExpiry",
-        "csrfToken",
-        "csrfTokenExpiry",
       ]);
 
       // Return success to indicate logout completed
       return { success: true };
     }
   }
-
-  /**
-   * Login with username and password - enhanced with security features
-   * @param {string} email User email
-   * @param {string} password User password
-   * @returns {Promise<Object>} Auth response
-   */
-  async login(email, password) {
-    try {
-      // Validate inputs
-      if (!email || !password) {
-        throw new Error("Email and password are required");
-      }
-
-      // Initialize CSRF protection if needed
-      if (!this.csrfToken) {
-        await this.initCsrfProtection();
-      }
-
-      // Login endpoint
-      const loginEndpoint = `${this.API_BASE_URL}/auth/login`;
-
-      // Call login API with CSRF protection
-      const response = await fetch(loginEndpoint, {
-        method: "POST",
-        headers: this.getSecureHeaders(),
-        credentials: "include", // Include cookies
-        body: JSON.stringify({ email, password }),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        throw new Error("Invalid response from server during login");
-      }
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Invalid credentials");
-      }
-
-      // Handle successful login
-      const { token, refreshToken, user } = data;
-
-      // Save authentication data securely
-      await this.saveAuthData(token, refreshToken, user);
-
-      return {
-        success: true,
-        user,
-      };
-    } catch (error) {
-      console.error("Login error:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Save authentication data securely
-   * @param {string} token Access token
-   * @param {string} refreshToken Refresh token
-   * @param {Object} user User data
-   */
-  async saveAuthData(token, refreshToken, user) {
-    // Set token expiry
-    const tokenExpiry = Date.now() + this.TOKEN_EXPIRY_DURATION;
-
-    // Set user data expiry (15 minutes)
-    const userDataExpiry = Date.now() + 15 * 60 * 1000;
-
-    // Store tokens in Chrome's secure storage (encrypted)
-    await chrome.storage.local.set({
-      token,
-      refreshToken,
-      user,
-      tokenExpiry,
-      userDataExpiry,
-    });
-  }
-
-  /**
-   * Validate a token's format (simple validation, not cryptographic)
-   * @param {string} token The token to validate
-   * @returns {boolean} Whether the token format is valid
-   */
-  isValidTokenFormat(token) {
-    // JWT tokens are typically 3 base64url-encoded segments separated by dots
-    if (!token || typeof token !== "string") return false;
-
-    // Check basic format
-    const parts = token.split(".");
-    if (parts.length !== 3) return false;
-
-    // Check that each part is base64url encoded
-    for (const part of parts) {
-      if (!/^[A-Za-z0-9_-]+$/i.test(part)) return false;
-    }
-
-    return true;
-  }
 }
 
-// Create a new instance of AuthService
+// Export as singleton
 const authService = new AuthService();
 
-// Check if we're in a browser context (where window exists)
-if (typeof self !== "undefined" && typeof self.window !== "undefined") {
-  // Make authService available globally in browser contexts only
-  self.window.authService = authService;
-}
-
-// Export for use in ESM modules or CommonJS
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = { authService };
+// Make it available globally for non-module scripts
+if (typeof window !== "undefined") {
+  window.authService = authService;
 }

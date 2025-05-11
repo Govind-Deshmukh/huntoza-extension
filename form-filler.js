@@ -1,13 +1,23 @@
 /**
- * PursuitPal - Form Filler Script
+ * Job Hunt Assist - Form Filler Script
  *
  * This script is injected directly into the React app when needed,
  * to fill form fields with extracted job data.
  */
 
 (function () {
-  // Check if we're on the job form page
+  // Get configuration if available
+  const config = window.configLoader
+    ? window.configLoader.getConfig()
+    : window.appConfig;
+
+  // Check if we're on the job form page using config if available
   const isJobFormPage = () => {
+    if (config) {
+      return window.location.href.includes(
+        config.getAppUrl(config.routes.jobs.new)
+      );
+    }
     return window.location.href.includes("/jobs/new");
   };
 
@@ -150,8 +160,9 @@
 
   // Show feedback notification to the user
   function showFeedbackToUser(message) {
-    // Set primary color
-    const primaryColor = "#552dec";
+    // Get primary color from config if available
+    const primaryColor =
+      config && config.styles ? config.styles.primaryColor : "#4CAF50";
 
     // Create notification element
     const notification = document.createElement("div");

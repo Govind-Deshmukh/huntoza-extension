@@ -1,28 +1,27 @@
 {
   "manifest_version": 3,
   "name": "PursuitPal",
-  "version": "1.0.1",
+  "version": "1.0",
   "description": "Track your job hunt with secure login - Extract job and contact details from job postings and LinkedIn",
   "permissions": ["activeTab", "storage", "scripting", "tabs", "alarms"],
-  "host_permissions": [
-    "https://api.pursuitpal.app/*",
-    "https://pursuitpal.app/*"
-  ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-ancestors 'none'"
-  },
+  "host_permissions": ["<all_urls>"],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "login.html",
     "default_icon": {
       "16": "images/icon.png",
       "48": "images/icon.png",
       "128": "images/icon.png"
-    },
-    "default_title": "PursuitPal"
+    }
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["config.js", "config-loader.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "icons": {
     "16": "images/icon.png",
@@ -32,48 +31,8 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["sidebar.html"],
+      "resources": ["config.js", "config-loader.js", "auth-service.js"],
       "matches": ["<all_urls>"]
     }
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://*.linkedin.com/jobs/*",
-        "https://*.indeed.com/*",
-        "https://*.glassdoor.com/*",
-        "https://*.ziprecruiter.com/*",
-        "https://*.monster.com/*",
-        "https://*.lever.co/*",
-        "https://*.greenhouse.io/*",
-        "https://*.workable.com/*",
-        "https://*.jobvite.com/*",
-        "https://*.hired.com/*",
-        "https://*.angel.co/*",
-        "https://*.remote.co/*",
-        "https://*.flexjobs.com/*",
-        "https://*.weworkremotely.com/*",
-        "https://*.jobspresso.co/*",
-        "https://*.remotive.com/*",
-        "https://*.virtualvocations.com/*",
-        "https://*.skipthegames.com/*",
-        "https://*.craigslist.org/*",
-        "https://*.naukri.com/*",
-        "https://*.shine.com/*",
-        "https://*.timesjobs.com/*",
-        "https://*.monsterindia.com/*",
-        "https://*.jobstreet.com/*",
-        "https://*.seek.com.au/*",
-        "https://*.indeed.co.uk/*",
-        "https://*.reed.co.uk/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "externally_connectable": {
-    "matches": ["https://*.pursuitpal.app/*"]
-  },
-  "minimum_chrome_version": "88",
-  "incognito": "split"
+  ]
 }

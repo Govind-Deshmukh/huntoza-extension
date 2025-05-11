@@ -1,13 +1,10 @@
 /**
- * PursuitPal - Popup Script
+ * PursuitPal - Popup Script with Authentication
  *
  * This script controls the popup UI and manages communication with
- * the content script and background script.
+ * the content script and background script. It includes authentication
+ * checks and secure API interactions.
  */
-
-// Constants
-const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
-const APP_BASE_URL = "https://pursuitpal.app";
 
 // DOM Elements
 const loadingState = document.getElementById("loading-state");
@@ -42,6 +39,9 @@ const prioritySelect = document.getElementById("priority");
 let currentJobData = null;
 // Current user data
 let currentUser = null;
+
+// API Base URL
+const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
@@ -148,7 +148,8 @@ async function handleLogout() {
     // Call auth service to handle logout
     const result = await authService.logout();
 
-    // Redirect to login page
+    // Redirect to login page regardless of result
+    // This ensures user can start fresh even if API logout fails
     window.location.href = "login.html";
   } catch (error) {
     console.error("Logout error:", error);
@@ -160,6 +161,11 @@ async function handleLogout() {
       logoutBtn.disabled = false;
     }
   }
+}
+
+// Make an authenticated API request
+async function fetchWithAuth(endpoint, options = {}) {
+  return authService.fetchWithAuth(endpoint, options);
 }
 
 // Set up tab switching functionality
@@ -318,33 +324,27 @@ function showErrorState() {
 // Check connection to the job tracker app
 function checkAppConnection() {
   // Check if we can connect to the application
-  fetch(`https://api.pursuitpal.app/api/health`, {
+  fetch(`${API_BASE_URL}/health`, {
     method: "GET",
-    // Don't use no-cors mode as it doesn't allow checking the response
+    mode: "no-cors", // Use no-cors mode since we're just checking connectivity
   })
-    .then((response) => {
-      if (response.ok) {
-        // If response is OK (status in the 200-299 range)
-        connectionStatus.innerHTML = `
-          <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-          <span>Connected to PursuitPal Tracker</span>
-        `;
-      } else {
-        // If response is not OK
-        connectionStatus.innerHTML = `
-          <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-          <span>Not connected to PursuitPal Tracker</span>
-        `;
-      }
+    .then(() => {
+      // If fetch succeeds, we can connect
+      connectionStatus.innerHTML = `
+      <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
+      <span>Connected to PursuitPal Tracker</span>
+    `;
     })
     .catch(() => {
-      // If fetch fails (network error), we can't connect
+      // If fetch fails, we can't connect
       connectionStatus.innerHTML = `
-        <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-        <span>Not connected to PursuitPal Tracker</span>
-      `;
+      <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
+      <span>Not connected to PursuitPal Tracker</span>
+    `;
     });
 }
+
+// Event Listeners
 
 // Settings button - Open options page
 if (settingsBtn) {
@@ -389,11 +389,14 @@ if (createBtn) {
       chrome.storage.local.set({ pendingJobApplication: jobData });
 
       // Construct the URL for the job form
-      const appUrl = `${APP_BASE_URL}/jobs/new`;
+      const appUrl = config
+        ? config.getAppUrl(config.routes.jobs.new)
+        : "https://pursuitpal.app/jobs/new";
 
       // Create a new tab with the job form
       chrome.tabs.create({ url: appUrl }, (tab) => {
-        // Background script will handle injecting the data after the new tab loads
+        // We won't need to do anything else here as the background script will handle
+        // injecting the data after the new tab loads (see background.js)
       });
     } catch (error) {
       console.error("Error sending job data:", error);
