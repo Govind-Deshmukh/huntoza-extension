@@ -140,8 +140,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Check if this is the jobs/new page loading
     if (
       tab.url.includes(jobFormUrl) ||
-      tab.url.includes("localhost:3000/jobs/new") ||
-      tab.url.includes("your-pursuitpal-app.com/jobs/new")
+      tab.url.includes("https://pursuitpal.app/jobs/new") ||
+      tab.url.includes("https://pursuitpal.app/jobs/new")
     ) {
       // Check authentication first
       authService.isAuthenticated().then((isAuthenticated) => {

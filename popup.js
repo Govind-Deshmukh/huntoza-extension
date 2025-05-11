@@ -41,7 +41,7 @@ let currentJobData = null;
 let currentUser = null;
 
 // API Base URL
-const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+const API_BASE_URL = "https://api.pursuitpal.app/api";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
@@ -324,6 +324,7 @@ function showErrorState() {
 // Check connection to the job tracker app
 function checkAppConnection() {
   // Check if we can connect to the application
+  console.log(`${API_BASE_URL}/health`);
   fetch(`${API_BASE_URL}/health`, {
     method: "GET",
     mode: "no-cors", // Use no-cors mode since we're just checking connectivity
