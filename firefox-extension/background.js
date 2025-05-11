@@ -10,11 +10,11 @@ const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 const APP_URL = "https://pursuitpal.app";
 
 // Initialize extension
-chrome.runtime.onInstalled.addListener(() => {
+browser.runtime.onInstalled.addListener(() => {
   console.log("PursuitPal extension installed");
 
   // Set default options
-  chrome.storage.sync.set({
+  browser.storage.sync.set({
     options: {
       autoExtract: true,
       showBadge: true,
@@ -25,56 +25,56 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Set up message listeners
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   switch (message.action) {
     case "checkAuth":
-      checkAuthStatus().then(sendResponse);
-      return true; // Keep the message channel open for async response
+      return checkAuthStatus();
 
     case "login":
-      handleLogin(message.credentials).then(sendResponse);
-      return true;
+      return handleLogin(message.credentials);
 
     case "logout":
-      handleLogout().then(sendResponse);
-      return true;
+      return handleLogout();
 
     case "extractJobData":
       if (sender.tab) {
-        extractJobData(sender.tab.id).then(sendResponse);
+        return extractJobData(sender.tab.id);
       } else {
         // If called from popup without tab info, get active tab
-        chrome.tabs.query(
-          { active: true, currentWindow: true },
-          function (tabs) {
+        return browser.tabs
+          .query({ active: true, currentWindow: true })
+          .then((tabs) => {
             if (tabs && tabs.length > 0) {
-              extractJobData(tabs[0].id).then(sendResponse);
+              return extractJobData(tabs[0].id);
             } else {
-              sendResponse({ success: false, error: "No active tab found" });
+              return Promise.resolve({
+                success: false,
+                error: "No active tab found",
+              });
             }
-          }
-        );
+          });
       }
-      return true;
 
     case "saveJobData":
-      saveJobData(message.data).then(sendResponse);
-      return true;
+      return saveJobData(message.data);
 
     case "sendToApp":
-      sendDataToApp(message.data).then(sendResponse);
-      return true;
+      return sendDataToApp(message.data);
 
     case "pageIsJobForm":
-      handleJobFormPage(sender.tab.id).then(sendResponse);
-      return true;
+      if (sender.tab) {
+        return handleJobFormPage(sender.tab.id);
+      }
+      return Promise.resolve({ success: false, error: "No tab info provided" });
   }
+
+  return Promise.resolve({ success: false, error: "Unknown action" });
 });
 
 // Check extension authentication status
 async function checkAuthStatus() {
   try {
-    const data = await chrome.storage.local.get([
+    const data = await browser.storage.local.get([
       "authToken",
       "lastAuthenticated",
       "user",
@@ -94,7 +94,7 @@ async function checkAuthStatus() {
 
       if (!stillValid) {
         // Token is invalid, clear it
-        await chrome.storage.local.remove([
+        await browser.storage.local.remove([
           "authToken",
           "lastAuthenticated",
           "user",
@@ -103,7 +103,7 @@ async function checkAuthStatus() {
       }
 
       // Update last authenticated time
-      await chrome.storage.local.set({ lastAuthenticated: Date.now() });
+      await browser.storage.local.set({ lastAuthenticated: Date.now() });
     }
 
     return {
@@ -158,7 +158,7 @@ async function handleLogin(credentials) {
     const data = await response.json();
 
     // Save auth data
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       authToken: data.token,
       refreshToken: data.refreshToken,
       user: data.user,
@@ -175,7 +175,8 @@ async function handleLogin(credentials) {
 // Handle logout
 async function handleLogout() {
   try {
-    const { authToken } = await chrome.storage.local.get(["authToken"]);
+    const data = await browser.storage.local.get(["authToken"]);
+    const authToken = data.authToken;
 
     if (authToken) {
       // Call logout API
@@ -193,7 +194,7 @@ async function handleLogout() {
     }
 
     // Clear stored data regardless of API call success
-    await chrome.storage.local.remove([
+    await browser.storage.local.remove([
       "authToken",
       "refreshToken",
       "user",
@@ -210,49 +211,44 @@ async function handleLogout() {
 // Extract job data from active tab
 async function extractJobData(tabId) {
   try {
-    // Execute content script to extract data
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      function: () => {
-        // This code runs in the content script context
-        if (window._pursuitPalExtractData) {
-          return window._pursuitPalExtractData();
-        } else {
-          return { error: "Extraction function not available" };
-        }
-      },
-    });
+    // Create extraction function
+    const extractionFn = () => {
+      // This code runs in the content script context
+      if (window._pursuitPalExtractData) {
+        return window._pursuitPalExtractData();
+      } else {
+        return { error: "Extraction function not available" };
+      }
+    };
 
-    if (!results || !results[0] || results[0].result.error) {
-      // If extraction failed or function not available, inject content script
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        files: ["content.js"],
+    // Execute content script to extract data
+    let results;
+    try {
+      results = await browser.tabs.executeScript(tabId, {
+        code: `(${extractionFn.toString()})()`,
+      });
+    } catch (error) {
+      console.error("Error during extraction execution:", error);
+
+      // Inject content script if it's not available
+      await browser.tabs.executeScript(tabId, {
+        file: "content.js",
       });
 
       // Wait for content script to initialize
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Try extraction again
-      const retryResults = await chrome.scripting.executeScript({
-        target: { tabId },
-        function: () => {
-          if (window._pursuitPalExtractData) {
-            return window._pursuitPalExtractData();
-          } else {
-            return { error: "Extraction function still not available" };
-          }
-        },
+      results = await browser.tabs.executeScript(tabId, {
+        code: `(${extractionFn.toString()})()`,
       });
-
-      if (!retryResults || !retryResults[0] || retryResults[0].result.error) {
-        return { success: false, error: "Failed to extract job data" };
-      }
-
-      return { success: true, data: retryResults[0].result };
     }
 
-    return { success: true, data: results[0].result };
+    if (!results || !results[0] || results[0].error) {
+      return { success: false, error: "Failed to extract job data" };
+    }
+
+    return { success: true, data: results[0] };
   } catch (error) {
     console.error("Error extracting job data:", error);
     return { success: false, error: error.message };
@@ -268,7 +264,7 @@ async function saveJobData(data) {
       timestamp: Date.now(),
     };
 
-    await chrome.storage.local.set({ currentJobData: jobData });
+    await browser.storage.local.set({ currentJobData: jobData });
     return { success: true };
   } catch (error) {
     console.error("Error saving job data:", error);
@@ -279,19 +275,20 @@ async function saveJobData(data) {
 // Send job data to PursuitPal web app
 async function sendDataToApp(data) {
   try {
-    const { authToken } = await chrome.storage.local.get(["authToken"]);
+    const storedData = await browser.storage.local.get(["authToken"]);
+    const authToken = storedData.authToken;
 
     if (!authToken) {
       return { success: false, error: "Not authenticated" };
     }
 
     // FIRST, store the current job data regardless of API status
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       lastCreatedJobData: data,
     });
 
     // Create a tab to view the job form
-    const newTab = await chrome.tabs.create({ url: `${APP_URL}/jobs/new` });
+    const newTab = await browser.tabs.create({ url: `${APP_URL}/jobs/new` });
 
     // Now try to call API to save job data
     try {
@@ -316,17 +313,17 @@ async function sendDataToApp(data) {
       // If successful, update the job ID
       if (result.success && result.job && result.job._id) {
         // Store as the most recently created job
-        await chrome.storage.local.set({
+        await browser.storage.local.set({
           lastCreatedJobId: result.job._id,
           lastCreatedJobData: result.job,
         });
 
         // Clear current job data
-        await chrome.storage.local.remove(["currentJobData"]);
+        await browser.storage.local.remove(["currentJobData"]);
 
         // If we have a job ID, redirect to the job details page
         try {
-          await chrome.tabs.update(newTab.id, {
+          await browser.tabs.update(newTab.id, {
             url: `${APP_URL}/jobs/${result.job._id}`,
           });
         } catch (tabError) {
@@ -350,7 +347,7 @@ async function sendDataToApp(data) {
 async function handleJobFormPage(tabId) {
   try {
     // Get the stored job data
-    const data = await chrome.storage.local.get([
+    const data = await browser.storage.local.get([
       "lastCreatedJobData",
       "currentJobData",
     ]);
@@ -361,7 +358,7 @@ async function handleJobFormPage(tabId) {
     }
 
     // Send the data to the content script to fill the form
-    await chrome.tabs.sendMessage(tabId, {
+    await browser.tabs.sendMessage(tabId, {
       action: "fillJobForm",
       data: jobData,
     });
@@ -374,25 +371,25 @@ async function handleJobFormPage(tabId) {
 }
 
 // Listen for tab updates to detect job boards
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     // Check if the tab is a job board
     const isJobBoard = isJobBoardUrl(tab.url);
 
     if (isJobBoard) {
       // Update the extension icon to indicate this is a job board
-      chrome.action.setBadgeText({
+      browser.browserAction.setBadgeText({
         tabId,
         text: "JOB",
       });
 
-      chrome.action.setBadgeBackgroundColor({
+      browser.browserAction.setBadgeBackgroundColor({
         tabId,
         color: "#552dec",
       });
     } else {
       // Clear the badge
-      chrome.action.setBadgeText({
+      browser.browserAction.setBadgeText({
         tabId,
         text: "",
       });
@@ -405,23 +402,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     ) {
       // Wait a bit for the page to fully load and React to initialize
       setTimeout(() => {
-        chrome.tabs.sendMessage(
-          tabId,
-          { action: "checkForJobData" },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              console.error(
-                "Error checking for job data:",
-                chrome.runtime.lastError
-              );
-              return;
-            }
-
+        browser.tabs
+          .sendMessage(tabId, { action: "checkForJobData" })
+          .then((response) => {
             if (response && response.ready) {
               handleJobFormPage(tabId);
             }
-          }
-        );
+          })
+          .catch((error) => {
+            console.error("Error checking for job data:", error);
+          });
       }, 1000);
     }
   }

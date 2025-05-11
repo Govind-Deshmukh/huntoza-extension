@@ -70,55 +70,86 @@ window._pursuitPalExtractData = extractJobData;
  * Main function to extract job data from the current page
  */
 function extractJobData() {
-  const url = window.location.href;
+  console.log("Extraction function called");
+  try {
+    const url = window.location.href;
+    console.log("Current URL:", url);
 
-  // Detect which job platform we're on
-  const platform = detectJobPlatform(url);
+    // Detect which job platform we're on
+    const platform = detectJobPlatform(url);
+    console.log("Detected platform:", platform);
 
-  let jobData;
+    let jobData;
 
-  // Use platform specific extractors when available
-  switch (platform) {
-    case "linkedin":
-      jobData = extractLinkedInJob();
-      break;
-    case "indeed":
-      jobData = extractIndeedJob();
-      break;
-    case "glassdoor":
-      jobData = extractGlassdoorJob();
-      break;
-    case "naukri":
-      jobData = extractNaukriJob();
-      break;
-    default:
-      // Generic extractor for other job sites
-      jobData = extractGenericJob();
+    // Use platform specific extractors when available
+    switch (platform) {
+      case "linkedin":
+        jobData = extractLinkedInJob();
+        break;
+      case "indeed":
+        jobData = extractIndeedJob();
+        break;
+      case "glassdoor":
+        jobData = extractGlassdoorJob();
+        break;
+      case "naukri":
+        jobData = extractNaukriJob();
+        break;
+      default:
+        // Generic extractor for other job sites
+        jobData = extractGenericJob();
+    }
+
+    console.log("Extracted raw job data:", jobData);
+
+    // Ensure all required fields are present with defaults
+    const normalizedData = {
+      company: jobData.company || "",
+      position: jobData.position || "",
+      jobLocation: jobData.jobLocation || "",
+      jobType: jobData.jobType || "full-time",
+      jobDescription: jobData.jobDescription || "",
+      jobUrl: url,
+      salary: {
+        min: jobData.salary?.min || 0,
+        max: jobData.salary?.max || 0,
+        currency: jobData.salary?.currency || "INR",
+      },
+      applicationDate: new Date().toISOString().slice(0, 10),
+      status: "saved", // Default status for newly extracted jobs
+      priority: "medium",
+      favorite: false,
+      notes: "",
+      source: platform,
+      extractedWith: "pursuitpal-extension",
+    };
+
+    console.log("Normalized job data:", normalizedData);
+    return normalizedData;
+  } catch (error) {
+    console.error("Error in extractJobData:", error);
+    // Return empty data with basic URL info to avoid failure
+    return {
+      company: "",
+      position: document.title || "Job Position",
+      jobLocation: "",
+      jobType: "full-time",
+      jobDescription: "",
+      jobUrl: window.location.href,
+      salary: {
+        min: 0,
+        max: 0,
+        currency: "INR",
+      },
+      applicationDate: new Date().toISOString().slice(0, 10),
+      status: "saved",
+      priority: "medium",
+      favorite: false,
+      notes: "Error extracting data: " + error.message,
+      source: "unknown",
+      extractedWith: "pursuitpal-extension",
+    };
   }
-
-  // Ensure all required fields are present with defaults
-  const normalizedData = {
-    company: jobData.company || "",
-    position: jobData.position || "",
-    jobLocation: jobData.jobLocation || "",
-    jobType: jobData.jobType || "full-time",
-    jobDescription: jobData.jobDescription || "",
-    jobUrl: url,
-    salary: {
-      min: jobData.salary?.min || 0,
-      max: jobData.salary?.max || 0,
-      currency: jobData.salary?.currency || "INR",
-    },
-    applicationDate: new Date().toISOString().slice(0, 10),
-    status: "saved", // Default status for newly extracted jobs
-    priority: "medium",
-    favorite: false,
-    notes: "",
-    source: platform,
-    extractedWith: "pursuitpal-extension",
-  };
-
-  return normalizedData;
 }
 
 /**

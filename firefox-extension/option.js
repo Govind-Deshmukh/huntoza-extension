@@ -22,6 +22,8 @@ const defaultOptions = {
 
 // Initialize the options page
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("Options page initialized");
+
   // Load saved options
   loadOptions();
 
@@ -31,15 +33,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Load saved options from storage
 function loadOptions() {
-  chrome.storage.sync.get("options", (result) => {
-    const options = result.options || defaultOptions;
+  browser.storage.sync
+    .get("options")
+    .then((result) => {
+      const options = result.options || defaultOptions;
 
-    // Update UI to match saved options
-    autoExtractCheckbox.checked = options.autoExtract;
-    showBadgeCheckbox.checked = options.showBadge;
-    defaultPrioritySelect.value = options.defaultPriority;
-    defaultCurrencySelect.value = options.defaultCurrency;
-  });
+      console.log("Loaded options:", options);
+
+      // Update UI to match saved options
+      autoExtractCheckbox.checked = options.autoExtract;
+      showBadgeCheckbox.checked = options.showBadge;
+      defaultPrioritySelect.value = options.defaultPriority;
+      defaultCurrencySelect.value = options.defaultCurrency;
+    })
+    .catch((error) => {
+      console.error("Error loading options:", error);
+      showStatus("Error loading options. Using defaults.", "error");
+
+      // Apply defaults
+      autoExtractCheckbox.checked = defaultOptions.autoExtract;
+      showBadgeCheckbox.checked = defaultOptions.showBadge;
+      defaultPrioritySelect.value = defaultOptions.defaultPriority;
+      defaultCurrencySelect.value = defaultOptions.defaultCurrency;
+    });
 }
 
 // Save options to storage
@@ -53,16 +69,24 @@ function saveOptions(e) {
     defaultCurrency: defaultCurrencySelect.value,
   };
 
-  // Save to Chrome storage
-  chrome.storage.sync.set({ options }, () => {
-    // Show success message
-    showStatus("Settings saved successfully!", "success");
+  console.log("Saving options:", options);
 
-    // Hide message after 3 seconds
-    setTimeout(() => {
-      hideStatus();
-    }, 3000);
-  });
+  // Save to storage
+  browser.storage.sync
+    .set({ options })
+    .then(() => {
+      // Show success message
+      showStatus("Settings saved successfully!", "success");
+
+      // Hide message after 3 seconds
+      setTimeout(() => {
+        hideStatus();
+      }, 3000);
+    })
+    .catch((error) => {
+      console.error("Error saving options:", error);
+      showStatus("Error saving settings. Please try again.", "error");
+    });
 }
 
 // Show status message
