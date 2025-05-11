@@ -258,35 +258,66 @@ async function extractJobData() {
 
   try {
     console.log("Sending extractJobData message from popup");
-    // Send extract request to background script
-    const response = await sendMessage({ action: "extractJobData" });
-    console.log("Extract response:", response);
 
-    if (response && response.success && response.data) {
-      console.log("Job data extracted successfully:", response.data);
-      // Job data extracted successfully
-      currentJobData = response.data;
+    // Get current tab info
+    const tabs = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
 
-      // Save job data
-      await sendMessage({
-        action: "saveJobData",
-        data: currentJobData,
-      });
-
-      // Update job data view
-      updateJobDataView(currentJobData);
-
-      // Show job data view
-      showView("jobDataView");
-    } else {
-      // Error extracting job data
-      console.error("Extract job data error details:", response);
-      setErrorMessage(
-        (response && response.error) ||
-          "Failed to extract job data from this page"
-      );
-      showView("errorView");
+    if (!tabs || tabs.length === 0) {
+      throw new Error("No active tab found");
     }
+
+    const tab = tabs[0];
+
+    // First try to inject content script if not already there
+    try {
+      await browser.tabs.executeScript(tab.id, {
+        file: "content.js",
+      });
+      // Give content script time to initialize
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } catch (error) {
+      console.log("Content script may already be injected:", error);
+    }
+
+    // Now extract the job data
+    const results = await browser.tabs.executeScript(tab.id, {
+      code: `
+        if (typeof window._pursuitPalExtractData === 'function') {
+          window._pursuitPalExtractData();
+        } else {
+          { error: "Extraction function not available" }
+        }
+      `,
+    });
+
+    if (!results || !results[0] || results[0].error) {
+      throw new Error(
+        results && results[0] && results[0].error
+          ? results[0].error
+          : "Failed to extract job data"
+      );
+    }
+
+    const jobData = results[0];
+    console.log("Job data extracted successfully:", jobData);
+
+    // Store the extracted data
+    currentJobData = jobData;
+
+    // Save job data
+    await sendMessage({
+      action: "saveJobData",
+      data: currentJobData,
+    });
+
+    // Update job data view
+    updateJobDataView(currentJobData);
+
+    // Show job data view
+    showView("jobDataView");
   } catch (error) {
     console.error("Extract job data error:", error);
     setErrorMessage(
@@ -482,278 +513,8 @@ function isJobPostingURL(url) {
 
 // Send message to background script
 function sendMessage(message) {
-  return new Promise((resolve, reject) => {
-    try {
-      browser.runtime.sendMessage(message).then(
-        (response) => {
-          console.log("Message response:", response);
-          resolve(response || {});
-        },
-        (error) => {
-          console.error("Send message error:", error);
-          reject(error);
-        }
-      );
-    } catch (error) {
-      console.error("Send message exception:", error);
-      reject(error);
-    }
+  return browser.runtime.sendMessage(message).catch((error) => {
+    console.error("Send message error:", error);
+    throw error;
   });
-}
-
-// Extract Indeed Jobs
-function extractIndeedJob() {
-  const jobData = {
-    company: "",
-    position: "",
-    jobLocation: "",
-    jobType: "",
-    jobDescription: "",
-    salary: { min: 0, max: 0, currency: "INR" },
-  };
-
-  // Job Title
-  const titleElement = document.querySelector(".jobsearch-JobInfoHeader-title");
-  if (titleElement) {
-    jobData.position = titleElement.textContent.trim();
-  }
-
-  // Company Name
-  const companyElement =
-    document.querySelector('[data-company-name="true"]') ||
-    document.querySelector(".jobsearch-InlineCompanyRating-companyHeader") ||
-    document.querySelector(".jobsearch-InlineCompanyRating div");
-  if (companyElement) {
-    jobData.company = companyElement.textContent.trim();
-  }
-
-  // Location
-  const locationElement =
-    document.querySelector('[data-testid="job-location"]') ||
-    document.querySelector(
-      ".jobsearch-JobInfoHeader-subtitle .jobsearch-JobInfoHeader-locationText"
-    );
-  if (locationElement) {
-    jobData.jobLocation = locationElement.textContent.trim();
-  }
-
-  // Job Description
-  const descriptionElement = document.getElementById("jobDescriptionText");
-  if (descriptionElement) {
-    jobData.jobDescription = descriptionElement.textContent.trim();
-  }
-
-  // Job Type
-  const jobTypeElements = document.querySelectorAll(
-    '[data-testid="attribute_snippet_testid"]'
-  );
-  for (const element of jobTypeElements) {
-    const text = element.textContent.toLowerCase().trim();
-    if (text.includes("full-time")) {
-      jobData.jobType = "full-time";
-      break;
-    } else if (text.includes("part-time")) {
-      jobData.jobType = "part-time";
-      break;
-    } else if (text.includes("contract")) {
-      jobData.jobType = "contract";
-      break;
-    } else if (text.includes("internship")) {
-      jobData.jobType = "internship";
-      break;
-    } else if (text.includes("remote")) {
-      jobData.jobType = "remote";
-      break;
-    }
-  }
-
-  // Salary
-  const salaryElements = document.querySelectorAll(
-    '[data-testid="attribute_snippet_testid"]'
-  );
-  for (const element of salaryElements) {
-    const text = element.textContent.trim();
-    // Look for salary patterns like "$50,000 - $70,000 a year"
-    if (text.includes("$") || text.includes("₹")) {
-      const salaryMatch = text.match(
-        /(?:[$₹€£¥])\s*(\d[\d,.]+)(?:k)?(?:\s*-\s*|\s*to\s*)(?:[$₹€£¥])?\s*(\d[\d,.]+)(?:k)?/i
-      );
-
-      if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
-        let min = parseFloat(salaryMatch[1].replace(/[,]/g, ""));
-        let max = parseFloat(salaryMatch[2].replace(/[,]/g, ""));
-
-        if (text.toLowerCase().includes("k")) {
-          min *= 1000;
-          max *= 1000;
-        }
-
-        let currency = "INR";
-        if (text.includes("$")) {
-          currency = "USD";
-        } else if (text.includes("₹")) {
-          currency = "INR";
-        } else if (text.includes("€")) {
-          currency = "EUR";
-        } else if (text.includes("£")) {
-          currency = "GBP";
-        }
-
-        jobData.salary = { min, max, currency };
-        break;
-      }
-    }
-  }
-
-  return jobData;
-}
-
-// Extract Glassdoor Jobs
-function extractGlassdoorJob() {
-  const jobData = {
-    company: "",
-    position: "",
-    jobLocation: "",
-    jobType: "",
-    jobDescription: "",
-    salary: { min: 0, max: 0, currency: "INR" },
-  };
-
-  // Job Title
-  const titleElement =
-    document.querySelector(".job-title-header") ||
-    document.querySelector("h1[data-test='job-title']");
-  if (titleElement) {
-    jobData.position = titleElement.textContent.trim();
-  }
-
-  // Company Name
-  const companyElement = document.querySelector(".employer-name");
-  if (companyElement) {
-    jobData.company = companyElement.textContent.trim();
-  }
-
-  // Location
-  const locationElement = document.querySelector(".location");
-  if (locationElement) {
-    jobData.jobLocation = locationElement.textContent.trim();
-  }
-
-  // Job Description
-  const descriptionElement = document.getElementById("JobDescriptionContainer");
-  if (descriptionElement) {
-    jobData.jobDescription = descriptionElement.textContent.trim();
-  }
-
-  // Extract job type and salary from description
-  if (jobData.jobDescription) {
-    // Job Type extraction
-    if (/full[- ]time|ft\b/i.test(jobData.jobDescription)) {
-      jobData.jobType = "full-time";
-    } else if (/part[- ]time|pt\b/i.test(jobData.jobDescription)) {
-      jobData.jobType = "part-time";
-    } else if (/\bcontract\b|\bcontractor\b/i.test(jobData.jobDescription)) {
-      jobData.jobType = "contract";
-    } else if (/\binternship\b|\bintern\b/i.test(jobData.jobDescription)) {
-      jobData.jobType = "internship";
-    } else if (
-      /\bremote\b|\bwork from home\b|\bwfh\b/i.test(jobData.jobDescription)
-    ) {
-      jobData.jobType = "remote";
-    }
-
-    // Salary extraction
-    const salaryMatch = jobData.jobDescription.match(
-      /(?:[$₹€£¥])\s*(\d[\d,.]+)(?:k)?(?:\s*-\s*|\s*to\s*)(?:[$₹€£¥])?\s*(\d[\d,.]+)(?:k)?/i
-    );
-
-    if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
-      let min = parseFloat(salaryMatch[1].replace(/[,]/g, ""));
-      let max = parseFloat(salaryMatch[2].replace(/[,]/g, ""));
-
-      if (salaryMatch[0].toLowerCase().includes("k")) {
-        min *= 1000;
-        max *= 1000;
-      }
-
-      let currency = "INR";
-      if (salaryMatch[0].includes("$")) {
-        currency = "USD";
-      } else if (salaryMatch[0].includes("₹")) {
-        currency = "INR";
-      } else if (salaryMatch[0].includes("€")) {
-        currency = "EUR";
-      } else if (salaryMatch[0].includes("£")) {
-        currency = "GBP";
-      }
-
-      jobData.salary = { min, max, currency };
-    }
-  }
-
-  return jobData;
-}
-
-// Extract Naukri Jobs
-function extractNaukriJob() {
-  const jobData = {
-    company: "",
-    position: "",
-    jobLocation: "",
-    jobType: "",
-    jobDescription: "",
-    salary: { min: 0, max: 0, currency: "INR" },
-  };
-
-  // Job Title
-  const titleElement =
-    document.querySelector(".jd-header-title") ||
-    document.querySelector(".jobTitle");
-  if (titleElement) {
-    jobData.position = titleElement.textContent.trim();
-  }
-
-  // Company Name
-  const companyElement =
-    document.querySelector(".jd-header-comp-name") ||
-    document.querySelector(".comp-name");
-  if (companyElement) {
-    jobData.company = companyElement.textContent.trim();
-  }
-
-  // Location
-  const locationElement =
-    document.querySelector(".jd-location") || document.querySelector(".loc");
-  if (locationElement) {
-    jobData.jobLocation = locationElement.textContent.trim();
-  }
-
-  // Job Description
-  const descriptionElement =
-    document.querySelector(".jd-desc") || document.querySelector(".job-desc");
-  if (descriptionElement) {
-    jobData.jobDescription = descriptionElement.textContent.trim();
-  }
-
-  // Salary
-  const salaryElement =
-    document.querySelector(".salary-wrap") ||
-    document.querySelector(".sal-wrap") ||
-    document.querySelector(".salary-estimate-text");
-
-  if (salaryElement) {
-    const salaryText = salaryElement.textContent.trim();
-    // Naukri usually shows salary like "₹ 8-12 Lacs PA" or "₹ 8-12 LPA"
-    const salaryMatch = salaryText.match(
-      /(\d+)(?:\s*-\s*|\s*to\s*)(\d+)(?:\s*lacs|\s*lpa)/i
-    );
-
-    if (salaryMatch && salaryMatch[1] && salaryMatch[2]) {
-      const min = parseFloat(salaryMatch[1]) * 100000; // Convert lacs to INR
-      const max = parseFloat(salaryMatch[2]) * 100000;
-      jobData.salary = { min, max, currency: "INR" };
-    }
-  }
-
-  return jobData;
 }

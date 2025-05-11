@@ -26,6 +26,8 @@ browser.runtime.onInstalled.addListener(() => {
 
 // Set up message listeners
 browser.runtime.onMessage.addListener((message, sender) => {
+  console.log("Message received in background:", message);
+
   switch (message.action) {
     case "checkAuth":
       return checkAuthStatus();
@@ -37,8 +39,11 @@ browser.runtime.onMessage.addListener((message, sender) => {
       return handleLogout();
 
     case "extractJobData":
+      let tabId;
+
       if (sender.tab) {
-        return extractJobData(sender.tab.id);
+        tabId = sender.tab.id;
+        return extractJobData(tabId);
       } else {
         // If called from popup without tab info, get active tab
         return browser.tabs
@@ -211,41 +216,37 @@ async function handleLogout() {
 // Extract job data from active tab
 async function extractJobData(tabId) {
   try {
-    // Create extraction function
-    const extractionFn = () => {
-      // This code runs in the content script context
-      if (window._pursuitPalExtractData) {
-        return window._pursuitPalExtractData();
-      } else {
-        return { error: "Extraction function not available" };
-      }
-    };
+    console.log("Extracting data from tab:", tabId);
 
-    // Execute content script to extract data
-    let results;
+    // First ensure the content script is injected
     try {
-      results = await browser.tabs.executeScript(tabId, {
-        code: `(${extractionFn.toString()})()`,
-      });
-    } catch (error) {
-      console.error("Error during extraction execution:", error);
-
-      // Inject content script if it's not available
       await browser.tabs.executeScript(tabId, {
         file: "content.js",
       });
-
       // Wait for content script to initialize
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Try extraction again
-      results = await browser.tabs.executeScript(tabId, {
-        code: `(${extractionFn.toString()})()`,
-      });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } catch (err) {
+      console.log("Content script may already be injected:", err);
     }
 
-    if (!results || !results[0] || results[0].error) {
-      return { success: false, error: "Failed to extract job data" };
+    // Execute extraction code
+    const results = await browser.tabs.executeScript(tabId, {
+      code: `
+        if (typeof window._pursuitPalExtractData === 'function') {
+          window._pursuitPalExtractData();
+        } else {
+          ({ error: "Extraction function not available" });
+        }
+      `,
+    });
+
+    if (!results || results.length === 0 || !results[0] || results[0].error) {
+      console.error("Extraction failed:", results);
+      const errorMessage =
+        results && results[0] && results[0].error
+          ? results[0].error
+          : "Failed to extract job data";
+      return { success: false, error: errorMessage };
     }
 
     return { success: true, data: results[0] };
