@@ -64,6 +64,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "sendToApp":
       sendDataToApp(message.data).then(sendResponse);
       return true;
+
+    case "pageIsJobForm":
+      handleJobFormPage(sender.tab.id).then(sendResponse);
+      return true;
   }
 });
 
@@ -281,44 +285,90 @@ async function sendDataToApp(data) {
       return { success: false, error: "Not authenticated" };
     }
 
-    // Call API to save job data
-    const response = await fetch(`${API_BASE_URL}/jobs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(data),
+    // FIRST, store the current job data regardless of API status
+    await chrome.storage.local.set({
+      lastCreatedJobData: data,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      return {
-        success: false,
-        error: errorData.message || "Failed to save job data",
-      };
-    }
+    // Create a tab to view the job form
+    const newTab = await chrome.tabs.create({ url: `${APP_URL}/jobs/new` });
 
-    const result = await response.json();
-
-    // If successful, get the ID of the created job
-    if (result.success && result.job && result.job._id) {
-      // Store as the most recently created job
-      await chrome.storage.local.set({
-        lastCreatedJobId: result.job._id,
-        lastCreatedJobData: result.job,
+    // Now try to call API to save job data
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(data),
       });
 
-      // Clear current job data
-      await chrome.storage.local.remove(["currentJobData"]);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API error:", errorData);
+        // Even though API failed, we've already created the tab
+        return { success: true, message: "Form opened but API save failed" };
+      }
 
-      // Create a tab to view the created job
-      chrome.tabs.create({ url: `${APP_URL}/jobs/${result.job._id}` });
+      const result = await response.json();
+
+      // If successful, update the job ID
+      if (result.success && result.job && result.job._id) {
+        // Store as the most recently created job
+        await chrome.storage.local.set({
+          lastCreatedJobId: result.job._id,
+          lastCreatedJobData: result.job,
+        });
+
+        // Clear current job data
+        await chrome.storage.local.remove(["currentJobData"]);
+
+        // If we have a job ID, redirect to the job details page
+        try {
+          await chrome.tabs.update(newTab.id, {
+            url: `${APP_URL}/jobs/${result.job._id}`,
+          });
+        } catch (tabError) {
+          console.error("Error updating tab:", tabError);
+        }
+      }
+
+      return { success: true, job: result.job };
+    } catch (apiError) {
+      console.error("API communication error:", apiError);
+      // Even though API failed, we've already created the tab with the form
+      return { success: true, message: "Form opened but API save failed" };
     }
-
-    return { success: true, job: result.job };
   } catch (error) {
     console.error("Error sending data to app:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle a page that's ready to receive job form data
+async function handleJobFormPage(tabId) {
+  try {
+    // Get the stored job data
+    const data = await chrome.storage.local.get([
+      "lastCreatedJobData",
+      "currentJobData",
+    ]);
+    const jobData = data.lastCreatedJobData || data.currentJobData;
+
+    if (!jobData) {
+      return { success: false, error: "No job data found" };
+    }
+
+    // Send the data to the content script to fill the form
+    await chrome.tabs.sendMessage(tabId, {
+      action: "fillJobForm",
+      data: jobData,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error handling job form page:", error);
     return { success: false, error: error.message };
   }
 }
@@ -346,6 +396,33 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         tabId,
         text: "",
       });
+    }
+
+    // If we're on the PursuitPal new job form page, check if we need to inject data
+    if (
+      tab.url.includes(`${APP_URL}/jobs/new`) ||
+      tab.url.includes(`${APP_URL}/jobs/edit`)
+    ) {
+      // Wait a bit for the page to fully load and React to initialize
+      setTimeout(() => {
+        chrome.tabs.sendMessage(
+          tabId,
+          { action: "checkForJobData" },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Error checking for job data:",
+                chrome.runtime.lastError
+              );
+              return;
+            }
+
+            if (response && response.ready) {
+              handleJobFormPage(tabId);
+            }
+          }
+        );
+      }, 1000);
     }
   }
 });

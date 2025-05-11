@@ -12,11 +12,55 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "extractJobData") {
     const jobData = extractJobData();
     sendResponse(jobData);
+    return true;
   } else if (message.action === "injectJobData") {
     injectJobData(message.data);
     sendResponse({ success: true });
+    return true;
+  } else if (message.action === "checkForJobData") {
+    // Check if we're on the job form page
+    if (
+      window.location.href.includes("pursuitpal.app/jobs/new") ||
+      window.location.href.includes("pursuitpal.app/jobs/edit")
+    ) {
+      sendResponse({ ready: true });
+    } else {
+      sendResponse({ ready: false });
+    }
+    return true;
+  } else if (message.action === "fillJobForm") {
+    // Fill the form with job data
+    injectJobData(message.data);
+    sendResponse({ success: true });
+    return true;
   }
   return true; // Keep channel open for async response
+});
+
+// When the page loads, check if it's the job form page
+document.addEventListener("DOMContentLoaded", () => {
+  // Check if we're on the job form page
+  if (
+    window.location.href.includes("pursuitpal.app/jobs/new") ||
+    window.location.href.includes("pursuitpal.app/jobs/edit")
+  ) {
+    // Tell background script we're on the form page and ready for data
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ action: "pageIsJobForm" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error sending pageIsJobForm message:",
+            chrome.runtime.lastError
+          );
+          return;
+        }
+
+        if (response && response.data) {
+          injectJobData(response.data);
+        }
+      });
+    }, 1000); // Small delay to ensure page is fully loaded
+  }
 });
 
 // Make extraction function available globally
@@ -401,46 +445,82 @@ function injectJobData(data) {
     return false;
   }
 
-  console.log("Injecting job data into PursuitPal form");
+  console.log("Attempting to inject job data into PursuitPal form", data);
 
-  // Wait for the form to load
-  waitForElement("input[name='company']")
-    .then(() => {
-      // Basic job information
-      fillInputField("company", data.company);
-      fillInputField("position", data.position);
-      fillInputField("jobLocation", data.jobLocation);
-      fillSelectField("jobType", data.jobType);
-
-      // Salary information
-      fillInputField("salary.min", data.salary.min);
-      fillInputField("salary.max", data.salary.max);
-      fillSelectField("salary.currency", data.salary.currency);
-
-      // Additional fields
-      fillInputField("jobUrl", data.jobUrl);
-      fillTextareaField("jobDescription", data.jobDescription);
-      fillSelectField("priority", data.priority);
-      fillCheckboxField("favorite", data.favorite);
-
-      // Set application date if provided
-      if (data.applicationDate) {
-        fillInputField("applicationDate", data.applicationDate);
-      }
-
-      // Add notes if provided
-      if (data.notes) {
-        fillTextareaField("notes", data.notes);
-      }
-
-      // Notify user that form has been filled
-      showNotification("Form auto-filled successfully!");
-    })
-    .catch((error) => {
-      console.error("Failed to auto-fill form:", error);
+  // Function to retry injection until the form is ready
+  const attemptInjection = (retryCount = 0, maxRetries = 10) => {
+    // If we've tried too many times, give up
+    if (retryCount >= maxRetries) {
+      console.error("Failed to inject job data after max retries");
       return false;
-    });
+    }
 
+    // Check if the form is loaded
+    const formElements =
+      document.querySelector("input[name='company']") ||
+      document.querySelector("form") ||
+      document.querySelector(".job-form");
+
+    if (!formElements) {
+      console.log(
+        `Form not ready yet, retry ${retryCount + 1} of ${maxRetries}`
+      );
+      // Wait longer between retries as we go
+      setTimeout(
+        () => attemptInjection(retryCount + 1, maxRetries),
+        500 * Math.pow(1.5, retryCount)
+      ); // Exponential backoff
+      return;
+    }
+
+    console.log("Form found, attempting to fill in data");
+
+    // Wait a bit more to make sure React has fully initialized
+    setTimeout(() => {
+      try {
+        // Basic job information
+        fillInputField("company", data.company);
+        fillInputField("position", data.position);
+        fillInputField("jobLocation", data.jobLocation);
+        fillSelectField("jobType", data.jobType);
+
+        // Salary information
+        fillInputField("salary.min", data.salary.min);
+        fillInputField("salary.max", data.salary.max);
+        fillSelectField("salary.currency", data.salary.currency);
+
+        // Additional fields
+        fillInputField("jobUrl", data.jobUrl);
+        fillTextareaField("jobDescription", data.jobDescription);
+        fillSelectField("priority", data.priority);
+        fillCheckboxField("favorite", data.favorite);
+
+        // Set application date if provided
+        if (data.applicationDate) {
+          fillInputField("applicationDate", data.applicationDate);
+        }
+
+        // Add notes if provided
+        if (data.notes) {
+          fillTextareaField("notes", data.notes);
+        }
+
+        console.log("Form auto-filled successfully");
+
+        // Notify user that form has been filled
+        showNotification("Form auto-filled successfully!");
+
+        return true;
+      } catch (error) {
+        console.error("Error filling form:", error);
+        showNotification("Error filling form: " + error.message, "error");
+        return false;
+      }
+    }, 500);
+  };
+
+  // Start the injection process
+  attemptInjection();
   return true;
 }
 
@@ -479,6 +559,9 @@ function fillInputField(name, value) {
   if (field) {
     field.value = value;
     triggerInputEvent(field);
+    console.log(`Filled input field ${name} with value ${value}`);
+  } else {
+    console.warn(`Could not find input field ${name}`);
   }
 }
 
@@ -490,6 +573,9 @@ function fillTextareaField(name, value) {
   if (field) {
     field.value = value;
     triggerInputEvent(field);
+    console.log(`Filled textarea field ${name}`);
+  } else {
+    console.warn(`Could not find textarea field ${name}`);
   }
 }
 
@@ -501,6 +587,9 @@ function fillSelectField(name, value) {
   if (field) {
     field.value = value;
     triggerInputEvent(field);
+    console.log(`Filled select field ${name} with value ${value}`);
+  } else {
+    console.warn(`Could not find select field ${name}`);
   }
 }
 
@@ -512,6 +601,9 @@ function fillCheckboxField(name, checked) {
   if (field) {
     field.checked = checked;
     triggerInputEvent(field);
+    console.log(`Set checkbox field ${name} to ${checked}`);
+  } else {
+    console.warn(`Could not find checkbox field ${name}`);
   }
 }
 
@@ -524,6 +616,25 @@ function triggerInputEvent(element) {
   // Create and dispatch change event
   const changeEvent = new Event("change", { bubbles: true });
   element.dispatchEvent(changeEvent);
+
+  // For React controlled inputs, we need to manually set the value property
+  // and then trigger the events
+  const oldValue = element.value;
+
+  // Try to access the React internal properties (this is hacky but often works)
+  if (element._valueTracker) {
+    element._valueTracker.setValue("");
+  }
+
+  // Reset the value and dispatch events
+  if (element.type === "checkbox" || element.type === "radio") {
+    const mouseEvent = new MouseEvent("click", { bubbles: true });
+    element.dispatchEvent(mouseEvent);
+  } else {
+    element.value = oldValue;
+    element.dispatchEvent(inputEvent);
+    element.dispatchEvent(changeEvent);
+  }
 }
 
 // Helper: Show notification message
