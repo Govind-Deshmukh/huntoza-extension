@@ -6,20 +6,12 @@
   "permissions": ["activeTab", "storage", "scripting", "tabs", "alarms"],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_popup": "login.html",
     "default_icon": {
       "16": "images/icon.png",
       "48": "images/icon.png",
       "128": "images/icon.png"
     }
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_start"
-    }
-  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -31,8 +23,15 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["auth-service.js"],
+      "resources": ["auth-service.js", "sidebar.html"],
       "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }

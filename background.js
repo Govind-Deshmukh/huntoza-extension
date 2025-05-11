@@ -1,10 +1,7 @@
 /**
  * PursuitPal - Background Script
  *
- * This script runs in the background and handles:
- * 1. Authentication checks and redirects
- * 2. Communication between popup and content scripts
- * 3. Facilitating state transfer to the React app
+ * Modified to support sidebar functionality
  */
 
 // Import authentication service
@@ -16,8 +13,9 @@ const APP_BASE_URL = "https://pursuitpal.app";
 // Global state to track pending application data
 let pendingApplicationData = null;
 let pendingContactData = null;
+let currentTabId = null;
 
-// Listen for messages from popup or content scripts
+// Listen for messages from sidebar or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "saveJobData") {
     // Save job data to storage
@@ -75,6 +73,87 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: error.message });
       });
     return true; // Keep the message channel open for async response
+  } else if (request.action === "getParentTabId") {
+    // Return the current tab ID for the sidebar to know its parent
+    sendResponse({ tabId: currentTabId });
+  } else if (request.action === "openLoginPage") {
+    // Open login page
+    chrome.tabs.create({ url: "login.html" });
+    sendResponse({ success: true });
+  } else if (request.action === "getJobDataForCurrentTab") {
+    // Return job data for the current tab if available
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length === 0) {
+        sendResponse({ success: false });
+        return;
+      }
+
+      const currentTab = tabs[0];
+      chrome.storage.local.get(["jobData"], (result) => {
+        if (result.jobData && result.jobData.jobUrl === currentTab.url) {
+          // We have cached data for this URL
+          sendResponse({ success: true, jobData: result.jobData });
+        } else {
+          sendResponse({ success: false });
+        }
+      });
+    });
+    return true; // Keep message channel open for async
+  } else if (request.action === "extractJobDataFromCurrentTab") {
+    // Extract job data from the current tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length === 0) {
+        sendResponse({ success: false });
+        return;
+      }
+
+      const currentTab = tabs[0];
+
+      // Inject content script if needed
+      chrome.scripting
+        .executeScript({
+          target: { tabId: currentTab.id },
+          files: ["content.js"],
+        })
+        .then(() => {
+          // Now ask content script to extract data
+          chrome.tabs.sendMessage(
+            currentTab.id,
+            { action: "extractJobData" },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "Content script error:",
+                  chrome.runtime.lastError
+                );
+                sendResponse({
+                  success: false,
+                  error: chrome.runtime.lastError.message,
+                });
+                return;
+              }
+
+              if (response && Object.keys(response).length > 0) {
+                // Store the job data
+                chrome.storage.local.set({ jobData: response });
+                sendResponse({ success: true, jobData: response });
+              } else {
+                sendResponse({ success: false });
+              }
+            }
+          );
+        })
+        .catch((error) => {
+          console.error("Script injection error:", error);
+          sendResponse({ success: false, error: error.message });
+        });
+    });
+    return true; // Keep message channel open for async
+  } else if (request.action === "openJobForm") {
+    // Open job form in a new tab with the job data
+    chrome.storage.local.set({ pendingJobApplication: request.jobData });
+    chrome.tabs.create({ url: `${APP_BASE_URL}/jobs/new` });
+    sendResponse({ success: true });
   }
   return true; // Keep the message channel open for async response
 });
@@ -95,7 +174,10 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // Handle browser action click (icon click)
-chrome.action.onClicked.addListener(async () => {
+chrome.action.onClicked.addListener(async (tab) => {
+  // Save the current tab ID for reference
+  currentTabId = tab.id;
+
   // Check if user is authenticated
   const isAuthenticated = await authService.isAuthenticated();
 
@@ -105,14 +187,22 @@ chrome.action.onClicked.addListener(async () => {
     return;
   }
 
-  // If authenticated, this won't run if popup is specified in the manifest,
-  // but it's here as a fallback
-  chrome.windows.create({
-    url: "popup.html",
-    type: "popup",
-    width: 450,
-    height: 600,
-  });
+  // If authenticated, inject the sidebar
+  chrome.scripting
+    .executeScript({
+      target: { tabId: tab.id },
+      files: ["sidebar-injector.js"],
+    })
+    .catch((error) => {
+      console.error("Failed to inject sidebar:", error);
+      // Fallback to opening in a popup
+      chrome.windows.create({
+        url: "sidebar.html",
+        type: "popup",
+        width: 450,
+        height: 600,
+      });
+    });
 });
 
 // Handle tab updates, especially for state transfer
@@ -340,35 +430,3 @@ function showNotification(message) {
     }, 5000);
   }
 }
-
-// Check authentication state when the extension loads
-chrome.runtime.onStartup.addListener(async () => {
-  // Check if the user is authenticated
-  const isAuthenticated = await authService.isAuthenticated();
-
-  if (isAuthenticated) {
-    // Set browser action popup to main popup
-    chrome.action.setPopup({ popup: "popup.html" });
-  } else {
-    // Set browser action popup to login
-    chrome.action.setPopup({ popup: "login.html" });
-  }
-});
-
-// Listen for alarm to check authentication state periodically
-chrome.alarms.create("authCheck", { periodInMinutes: 15 });
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === "authCheck") {
-    // Check if the user is authenticated
-    const isAuthenticated = await authService.isAuthenticated();
-
-    if (isAuthenticated) {
-      // Set browser action popup to main popup
-      chrome.action.setPopup({ popup: "popup.html" });
-    } else {
-      // Set browser action popup to login
-      chrome.action.setPopup({ popup: "login.html" });
-    }
-  }
-});
