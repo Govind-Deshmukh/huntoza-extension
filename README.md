@@ -1,6 +1,6 @@
 # PursuitPal Job Tracker Extension
 
-![PursuitPal Logo](images/icon.png)
+![PursuitPal Logo](chrome-extension/images/icon.png)
 
 PursuitPal is a browser extension that helps job seekers organize their job search process by automatically extracting and saving job posting details from popular job boards.
 
