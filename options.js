@@ -8,11 +8,6 @@
  * - Manages user profile and logout functionality
  */
 
-// Get configuration
-const config = window.configLoader
-  ? window.configLoader.getConfig()
-  : window.appConfig;
-
 // DOM Elements - Settings
 const autoExtractOnPageLoad = document.getElementById("autoExtractOnPageLoad");
 const aiEnhancementEnabled = document.getElementById("aiEnhancementEnabled");

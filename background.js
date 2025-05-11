@@ -1,5 +1,5 @@
 /**
- * PursuitPal - Background Script with Authentication
+ * PursuitPal - Background Script
  *
  * This script runs in the background and handles:
  * 1. Authentication checks and redirects
@@ -10,10 +10,8 @@
 // Import authentication service
 importScripts("auth-service.js");
 
-// Load configuration if available
-const config = window.configLoader
-  ? window.configLoader.getConfig()
-  : window.appConfig;
+// Constants
+const APP_BASE_URL = "https://pursuitpal.app";
 
 // Global state to track pending application data
 let pendingApplicationData = null;
@@ -86,21 +84,11 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     console.log("PursuitPal extension installed");
 
-    // Get default API URL from config if available
-    const apiUrl = config
-      ? config.apiBaseUrl
-      : "https://api.pursuitpal.app/api/v1";
-
-    // Get AI enhancement state from config if available
-    const aiEnhancementEnabled = config
-      ? config.isFeatureEnabled("aiEnhancement")
-      : false;
-
     // Set default options
     chrome.storage.sync.set({
       options: {
         autoExtractOnPageLoad: true,
-        aiEnhancementEnabled: aiEnhancementEnabled,
+        aiEnhancementEnabled: false,
       },
     });
   }
@@ -131,17 +119,14 @@ chrome.action.onClicked.addListener(async () => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Only run when page load is complete
   if (changeInfo.status === "complete") {
-    // Define URLs for job and contact forms using config if available
-    const jobFormUrl = config ? config.getAppUrl(config.routes.jobs.new) : "";
-    const contactFormUrl = config
-      ? config.getAppUrl(config.routes.contacts.new)
-      : "";
+    // Define URLs for job and contact forms
+    const jobFormUrl = `${APP_BASE_URL}/jobs/new`;
+    const contactFormUrl = `${APP_BASE_URL}/contacts/new`;
 
     // Check if this is the jobs/new page loading
     if (
       tab.url.includes(jobFormUrl) ||
-      tab.url.includes("https://pursuitpal.app/jobs/new") ||
-      tab.url.includes("https://pursuitpal.app/jobs/new")
+      tab.url.includes("pursuitpal.app/jobs/new")
     ) {
       // Check authentication first
       authService.isAuthenticated().then((isAuthenticated) => {
@@ -179,7 +164,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Check if this is the contacts/new page loading
     if (
       tab.url.includes(contactFormUrl) ||
-      tab.url.includes("pursuitpal.app/contacts/new") ||
       tab.url.includes("pursuitpal.app/contacts/new")
     ) {
       // Check authentication first
@@ -304,9 +288,8 @@ function injectStateToReactApp(data, type = "job") {
 
 // Function to show a notification to the user
 function showNotification(message) {
-  // Get primary color from config if available
-  const primaryColor =
-    config && config.styles ? config.styles.primaryColor : "#552dec";
+  // Hardcoded primary color
+  const primaryColor = "#552dec";
 
   // Check if notification already exists
   let notification = document.getElementById("extension-notification");

@@ -1,10 +1,13 @@
 /**
- * PursuitPal - Popup Script with Authentication
+ * PursuitPal - Popup Script
  *
  * This script controls the popup UI and manages communication with
- * the content script and background script. It includes authentication
- * checks and secure API interactions.
+ * the content script and background script.
  */
+
+// Constants
+const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+const APP_BASE_URL = "https://pursuitpal.app";
 
 // DOM Elements
 const loadingState = document.getElementById("loading-state");
@@ -39,9 +42,6 @@ const prioritySelect = document.getElementById("priority");
 let currentJobData = null;
 // Current user data
 let currentUser = null;
-
-// API Base URL
-const API_BASE_URL = "https://api.pursuitpal.app/api";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
@@ -148,8 +148,7 @@ async function handleLogout() {
     // Call auth service to handle logout
     const result = await authService.logout();
 
-    // Redirect to login page regardless of result
-    // This ensures user can start fresh even if API logout fails
+    // Redirect to login page
     window.location.href = "login.html";
   } catch (error) {
     console.error("Logout error:", error);
@@ -161,11 +160,6 @@ async function handleLogout() {
       logoutBtn.disabled = false;
     }
   }
-}
-
-// Make an authenticated API request
-async function fetchWithAuth(endpoint, options = {}) {
-  return authService.fetchWithAuth(endpoint, options);
 }
 
 // Set up tab switching functionality
@@ -324,28 +318,33 @@ function showErrorState() {
 // Check connection to the job tracker app
 function checkAppConnection() {
   // Check if we can connect to the application
-  console.log(`${API_BASE_URL}/health`);
-  fetch(`${API_BASE_URL}/health`, {
+  fetch(`https://api.pursuitpal.app/api/health`, {
     method: "GET",
-    mode: "no-cors", // Use no-cors mode since we're just checking connectivity
+    // Don't use no-cors mode as it doesn't allow checking the response
   })
-    .then(() => {
-      // If fetch succeeds, we can connect
-      connectionStatus.innerHTML = `
-      <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-      <span>Connected to PursuitPal Tracker</span>
-    `;
+    .then((response) => {
+      if (response.ok) {
+        // If response is OK (status in the 200-299 range)
+        connectionStatus.innerHTML = `
+          <span class="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
+          <span>Connected to PursuitPal Tracker</span>
+        `;
+      } else {
+        // If response is not OK
+        connectionStatus.innerHTML = `
+          <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
+          <span>Not connected to PursuitPal Tracker</span>
+        `;
+      }
     })
     .catch(() => {
-      // If fetch fails, we can't connect
+      // If fetch fails (network error), we can't connect
       connectionStatus.innerHTML = `
-      <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
-      <span>Not connected to PursuitPal Tracker</span>
-    `;
+        <span class="h-2 w-2 rounded-full bg-red-500 mr-1"></span>
+        <span>Not connected to PursuitPal Tracker</span>
+      `;
     });
 }
-
-// Event Listeners
 
 // Settings button - Open options page
 if (settingsBtn) {
@@ -390,14 +389,11 @@ if (createBtn) {
       chrome.storage.local.set({ pendingJobApplication: jobData });
 
       // Construct the URL for the job form
-      const appUrl = config
-        ? config.getAppUrl(config.routes.jobs.new)
-        : "https://pursuitpal.app/jobs/new";
+      const appUrl = `${APP_BASE_URL}/jobs/new`;
 
       // Create a new tab with the job form
       chrome.tabs.create({ url: appUrl }, (tab) => {
-        // We won't need to do anything else here as the background script will handle
-        // injecting the data after the new tab loads (see background.js)
+        // Background script will handle injecting the data after the new tab loads
       });
     } catch (error) {
       console.error("Error sending job data:", error);

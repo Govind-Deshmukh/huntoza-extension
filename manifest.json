@@ -16,13 +16,12 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["config.js", "config-loader.js", "content.js"],
+      "js": ["content.js"],
       "run_at": "document_start"
     }
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "icons": {
     "16": "images/icon.png",
@@ -32,7 +31,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["config.js", "config-loader.js", "auth-service.js"],
+      "resources": ["auth-service.js"],
       "matches": ["<all_urls>"]
     }
   ]

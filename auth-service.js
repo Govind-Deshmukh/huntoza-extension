@@ -10,13 +10,8 @@
 
 class AuthService {
   constructor() {
-    // Get configuration
-    this.config = window.configLoader
-      ? window.configLoader.getConfig()
-      : window.appConfig;
-    this.API_BASE_URL = this.config
-      ? this.config.apiBaseUrl
-      : "https://api.pursuitpal.app/api/v1";
+    // Hardcoded API URL
+    this.API_BASE_URL = "https://api.pursuitpal.app/api/v1";
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];
@@ -131,9 +126,7 @@ class AuthService {
       };
 
       // Make the API request
-      const requestUrl = this.config
-        ? this.config.getApiUrl(endpoint)
-        : `${this.API_BASE_URL}${endpoint}`;
+      const requestUrl = `${this.API_BASE_URL}${endpoint}`;
       const response = await fetch(requestUrl, {
         ...options,
         headers,
@@ -188,10 +181,8 @@ class AuthService {
             throw new Error("No refresh token available");
           }
 
-          // Get refresh token endpoint from config
-          const refreshUrl = this.config
-            ? this.config.getApiUrl("auth/refresh-token")
-            : `${this.API_BASE_URL}/auth/refresh-token`;
+          // Get refresh token endpoint
+          const refreshUrl = `${this.API_BASE_URL}/auth/refresh-token`;
 
           // Call refresh token API
           const response = await fetch(refreshUrl, {
@@ -208,17 +199,14 @@ class AuthService {
             throw new Error(data.message || "Failed to refresh token");
           }
 
-          // Get token expiry from config or use default
-          const tokenExpiryDuration =
-            this.config && this.config.auth
-              ? this.config.auth.tokenExpiry
-              : 3600 * 1000;
+          // Default token validity - 1 hour
+          const tokenExpiryDuration = 3600 * 1000;
 
           // Save new tokens
           await chrome.storage.local.set({
             token: data.token,
             refreshToken: data.refreshToken,
-            tokenExpiry: Date.now() + tokenExpiryDuration, // Token valid based on config
+            tokenExpiry: Date.now() + tokenExpiryDuration,
           });
 
           resolve({ token: data.token, refreshToken: data.refreshToken });
@@ -260,10 +248,7 @@ class AuthService {
       const authData = await this.getAuthData();
       if (authData.token) {
         try {
-          // Get logout endpoint from config
-          const logoutUrl = this.config
-            ? this.config.getApiUrl("auth/logout")
-            : `${this.API_BASE_URL}/auth/logout`;
+          const logoutUrl = `${this.API_BASE_URL}/auth/logout`;
 
           await fetch(logoutUrl, {
             method: "POST",
