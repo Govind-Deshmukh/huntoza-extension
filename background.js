@@ -5,6 +5,8 @@
  * popup, and the PursuitPal web application.
  */
 
+console.log("PursuitPal background script loaded");
+
 // Hardcoded URLs without config dependency
 const APP_BASE_URL = "https://pursuitpal.app";
 
@@ -14,32 +16,43 @@ let pendingContactData = null;
 
 // Listen for messages from content scripts and popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Message received:", request.action);
+  console.log("Background script received message:", request.action);
 
   switch (request.action) {
     case "saveJobData":
       // Sanitize and store job data
       pendingJobData = sanitizeJobData(request.data);
-      chrome.storage.local.set({
-        jobData: pendingJobData,
-        jobDataTimestamp: Date.now(),
-      });
-      sendResponse({ success: true });
-      break;
+      chrome.storage.local.set(
+        {
+          jobData: pendingJobData,
+          jobDataTimestamp: Date.now(),
+        },
+        () => {
+          console.log("Job data saved to storage:", pendingJobData);
+          sendResponse({ success: true });
+        }
+      );
+      return true; // Keep connection open for async response
 
     case "saveContactData":
       // Sanitize and store contact data
       pendingContactData = sanitizeContactData(request.data);
-      chrome.storage.local.set({
-        contactData: pendingContactData,
-        contactDataTimestamp: Date.now(),
-      });
-      sendResponse({ success: true });
-      break;
+      chrome.storage.local.set(
+        {
+          contactData: pendingContactData,
+          contactDataTimestamp: Date.now(),
+        },
+        () => {
+          console.log("Contact data saved to storage:", pendingContactData);
+          sendResponse({ success: true });
+        }
+      );
+      return true; // Keep connection open for async response
 
     case "getJobData":
       // Return stored job data to popup
       chrome.storage.local.get(["jobData"], (result) => {
+        console.log("Returning job data to popup:", result.jobData);
         sendResponse({ data: result.jobData || null });
       });
       return true; // Keep connection open for async response
@@ -47,6 +60,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case "getContactData":
       // Return stored contact data to popup
       chrome.storage.local.get(["contactData"], (result) => {
+        console.log("Returning contact data to popup:", result.contactData);
         sendResponse({ data: result.contactData || null });
       });
       return true; // Keep connection open for async response
@@ -55,6 +69,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Open PursuitPal in a new tab with data
       const dataType = request.dataType; // "job" or "contact"
       const data = request.data;
+      console.log(`Sending ${dataType} data to PursuitPal:`, data);
 
       if (dataType === "job") {
         openJobForm(data, sendResponse);
@@ -67,6 +82,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case "extractFromCurrentTab":
       // Request content script to extract data from current tab
+      console.log("Extract from current tab requested");
       extractFromCurrentTab(sendResponse);
       return true; // Keep connection open for async response
   }
@@ -160,14 +176,23 @@ function sanitizeCurrency(currency) {
 // Open job form in PursuitPal with extracted data
 function openJobForm(jobData, sendResponse) {
   try {
+    console.log("Opening job form with data:", jobData);
+
     // Store data with timestamp for the web app to pick up
-    chrome.storage.local.set({
-      pendingJobApplication: jobData,
-      pendingJobTimestamp: Date.now(),
-    });
+    chrome.storage.local.set(
+      {
+        pendingJobApplication: jobData,
+        pendingJobTimestamp: Date.now(),
+      },
+      () => {
+        console.log("Stored pending job application in local storage");
+      }
+    );
 
     // Create a new tab with the job form URL
     chrome.tabs.create({ url: `${APP_BASE_URL}/jobs/new` }, (tab) => {
+      console.log("Created new tab for job form:", tab.id);
+
       // Execute script to inject the data after page load
       chrome.tabs.onUpdated.addListener(function listener(
         tabId,
@@ -175,13 +200,21 @@ function openJobForm(jobData, sendResponse) {
         updatedTab
       ) {
         if (tabId === tab.id && changeInfo.status === "complete") {
+          console.log("Tab fully loaded, injecting script");
           chrome.tabs.onUpdated.removeListener(listener);
 
           // Inject script to transfer data to the web app
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: injectJobData,
-          });
+          chrome.scripting
+            .executeScript({
+              target: { tabId: tab.id },
+              function: injectJobData,
+            })
+            .then(() => {
+              console.log("Job data injection script executed");
+            })
+            .catch((err) => {
+              console.error("Error executing job data injection script:", err);
+            });
         }
       });
 
@@ -196,14 +229,23 @@ function openJobForm(jobData, sendResponse) {
 // Open contact form in PursuitPal with extracted data
 function openContactForm(contactData, sendResponse) {
   try {
+    console.log("Opening contact form with data:", contactData);
+
     // Store data with timestamp for the web app to pick up
-    chrome.storage.local.set({
-      pendingContact: contactData,
-      pendingContactTimestamp: Date.now(),
-    });
+    chrome.storage.local.set(
+      {
+        pendingContact: contactData,
+        pendingContactTimestamp: Date.now(),
+      },
+      () => {
+        console.log("Stored pending contact in local storage");
+      }
+    );
 
     // Create a new tab with the contact form URL
     chrome.tabs.create({ url: `${APP_BASE_URL}/contacts/new` }, (tab) => {
+      console.log("Created new tab for contact form:", tab.id);
+
       // Execute script to inject the data after page load
       chrome.tabs.onUpdated.addListener(function listener(
         tabId,
@@ -211,13 +253,24 @@ function openContactForm(contactData, sendResponse) {
         updatedTab
       ) {
         if (tabId === tab.id && changeInfo.status === "complete") {
+          console.log("Tab fully loaded, injecting script");
           chrome.tabs.onUpdated.removeListener(listener);
 
           // Inject script to transfer data to the web app
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: injectContactData,
-          });
+          chrome.scripting
+            .executeScript({
+              target: { tabId: tab.id },
+              function: injectContactData,
+            })
+            .then(() => {
+              console.log("Contact data injection script executed");
+            })
+            .catch((err) => {
+              console.error(
+                "Error executing contact data injection script:",
+                err
+              );
+            });
         }
       });
 
@@ -233,42 +286,44 @@ function openContactForm(contactData, sendResponse) {
 function extractFromCurrentTab(sendResponse) {
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     if (!tabs || tabs.length === 0) {
+      console.error("No active tab found");
       sendResponse({ success: false, error: "No active tab found" });
       return;
     }
 
     const activeTab = tabs[0];
+    console.log(
+      "Extracting data from active tab:",
+      activeTab.id,
+      activeTab.url
+    );
 
     try {
-      // Inject content script if needed
-      await chrome.scripting.executeScript({
-        target: { tabId: activeTab.id },
-        files: ["content.js"],
-      });
-
-      // Request content script to extract data
-      chrome.tabs.sendMessage(
-        activeTab.id,
-        { action: "extract" },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            sendResponse({
-              success: false,
-              error: chrome.runtime.lastError.message,
-            });
-            return;
+      // Check if content script is already injected
+      try {
+        // First try sending a message - if it succeeds, content script is already injected
+        chrome.tabs.sendMessage(
+          activeTab.id,
+          { action: "ping" },
+          function (response) {
+            if (chrome.runtime.lastError) {
+              // Content script not yet injected, inject it
+              console.log("Content script not yet injected, injecting now");
+              injectContentScript(activeTab.id, sendResponse);
+            } else {
+              // Content script already injected, send extract message
+              console.log(
+                "Content script already injected, sending extract message"
+              );
+              sendExtractMessage(activeTab.id, sendResponse);
+            }
           }
-
-          if (response && response.data) {
-            sendResponse({ success: true, data: response.data });
-          } else {
-            sendResponse({
-              success: false,
-              error: "No data could be extracted from this page",
-            });
-          }
-        }
-      );
+        );
+      } catch (error) {
+        // Error occurred, inject content script
+        console.log("Error checking content script, will inject:", error);
+        injectContentScript(activeTab.id, sendResponse);
+      }
     } catch (error) {
       console.error("Extraction error:", error);
       sendResponse({ success: false, error: error.message });
@@ -276,8 +331,57 @@ function extractFromCurrentTab(sendResponse) {
   });
 }
 
+// Inject content script into tab
+function injectContentScript(tabId, sendResponse) {
+  chrome.scripting
+    .executeScript({
+      target: { tabId: tabId },
+      files: ["content.js"],
+    })
+    .then(() => {
+      console.log("Content script injected");
+      // Wait a moment for script to initialize
+      setTimeout(() => {
+        sendExtractMessage(tabId, sendResponse);
+      }, 500);
+    })
+    .catch((error) => {
+      console.error("Error injecting content script:", error);
+      sendResponse({
+        success: false,
+        error: "Failed to inject content script: " + error.message,
+      });
+    });
+}
+
+// Send extract message to content script
+function sendExtractMessage(tabId, sendResponse) {
+  chrome.tabs.sendMessage(tabId, { action: "extract" }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error sending extract message:", chrome.runtime.lastError);
+      sendResponse({
+        success: false,
+        error: chrome.runtime.lastError.message,
+      });
+      return;
+    }
+
+    if (response && response.data) {
+      console.log("Extract successful, received data:", response.data);
+      sendResponse({ success: true, data: response.data });
+    } else {
+      console.log("No data extracted");
+      sendResponse({
+        success: false,
+        error: "No data could be extracted from this page",
+      });
+    }
+  });
+}
+
 // Function to inject job data into the web app (runs in page context)
 function injectJobData() {
+  console.log("Injecting job data to web app");
   chrome.storage.local.get(["pendingJobApplication"], function (result) {
     const jobData = result.pendingJobApplication;
 
@@ -285,6 +389,8 @@ function injectJobData() {
       console.log("No pending job data found");
       return;
     }
+
+    console.log("Found pending job data:", jobData);
 
     // Store the data for the React app to use
     localStorage.setItem("pendingJobData", JSON.stringify(jobData));
@@ -306,6 +412,7 @@ function injectJobData() {
 
 // Function to inject contact data into the web app (runs in page context)
 function injectContactData() {
+  console.log("Injecting contact data to web app");
   chrome.storage.local.get(["pendingContact"], function (result) {
     const contactData = result.pendingContact;
 
@@ -313,6 +420,8 @@ function injectContactData() {
       console.log("No pending contact data found");
       return;
     }
+
+    console.log("Found pending contact data:", contactData);
 
     // Store the data for the React app to use
     localStorage.setItem("pendingContactData", JSON.stringify(contactData));
@@ -392,24 +501,38 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Listen for tab updates to inject content script
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Only run when page is done loading
-  if (changeInfo.status !== "complete") return;
+  if (changeInfo.status !== "complete" || !tab.url) return;
+
+  // Only process http/https pages
+  if (!tab.url.startsWith("http://") && !tab.url.startsWith("https://")) return;
 
   const url = tab.url.toLowerCase();
 
   // Check if this is a job posting page or LinkedIn profile
   if (isJobPostingPage(url) || isLinkedInProfilePage(url)) {
+    console.log(`Tab updated with supported page: ${url}`);
     // Get user options
     chrome.storage.sync.get("options", (result) => {
       const options = result.options || { autoExtract: true };
 
       // If auto-extract is enabled, inject the content script
       if (options.autoExtract) {
+        console.log(
+          `Auto-extract enabled, injecting content script to tab ${tabId}`
+        );
         chrome.scripting
           .executeScript({
             target: { tabId: tabId },
             files: ["content.js"],
           })
-          .catch((err) => console.log("Content script injection error:", err));
+          .then(() => {
+            console.log(`Content script injected into tab ${tabId}`);
+          })
+          .catch((err) =>
+            console.error("Content script injection error:", err)
+          );
+      } else {
+        console.log("Auto-extract disabled");
       }
     });
   }

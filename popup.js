@@ -59,6 +59,8 @@ let currentContactData = null;
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
+  console.log("PursuitPal popup initialized");
+
   // Setup tab switching
   setupTabs();
 
@@ -100,163 +102,9 @@ function setupTabs() {
   });
 }
 
-// Setup button event listeners
-function setupButtonListeners() {
-  // Settings button - Open options page
-  settingsBtn.addEventListener("click", () => {
-    chrome.runtime.openOptionsPage();
-  });
-
-  // Extract job data button
-  extractJobBtn.addEventListener("click", async () => {
-    showLoadingState();
-    try {
-      await extractData("job");
-    } catch (error) {
-      console.error("Error extracting job data:", error);
-      showErrorState();
-    }
-  });
-
-  // Refresh job data button
-  refreshJobBtn.addEventListener("click", async () => {
-    showLoadingState();
-    try {
-      await extractData("job");
-    } catch (error) {
-      console.error("Error refreshing job data:", error);
-      showErrorState();
-    }
-  });
-
-  // Send job data button
-  sendJobBtn.addEventListener("click", async () => {
-    if (!currentJobData) return;
-
-    // Disable button to prevent multiple clicks
-    sendJobBtn.disabled = true;
-    sendJobBtn.innerHTML = `
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Sending...
-    `;
-
-    try {
-      // Send message to background script
-      chrome.runtime.sendMessage(
-        {
-          action: "sendToPursuitPal",
-          dataType: "job",
-          data: currentJobData,
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error("Error sending job data:", chrome.runtime.lastError);
-            // Reset button
-            sendJobBtn.disabled = false;
-            sendJobBtn.textContent = "Send to PursuitPal";
-            return;
-          }
-
-          if (response && response.success) {
-            // Close popup after successful send
-            window.close();
-          } else {
-            console.error("Failed to send job data:", response?.error);
-            // Reset button
-            sendJobBtn.disabled = false;
-            sendJobBtn.textContent = "Send to PursuitPal";
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error sending job data:", error);
-      // Reset button
-      sendJobBtn.disabled = false;
-      sendJobBtn.textContent = "Send to PursuitPal";
-    }
-  });
-
-  // Extract contact data button
-  extractContactBtn.addEventListener("click", async () => {
-    showLoadingState();
-    try {
-      await extractData("contact");
-    } catch (error) {
-      console.error("Error extracting contact data:", error);
-      showErrorState();
-    }
-  });
-
-  // Refresh contact data button
-  refreshContactBtn.addEventListener("click", async () => {
-    showLoadingState();
-    try {
-      await extractData("contact");
-    } catch (error) {
-      console.error("Error refreshing contact data:", error);
-      showErrorState();
-    }
-  });
-
-  // Send contact data button
-  sendContactBtn.addEventListener("click", async () => {
-    if (!currentContactData) return;
-
-    // Disable button to prevent multiple clicks
-    sendContactBtn.disabled = true;
-    sendContactBtn.innerHTML = `
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Sending...
-    `;
-
-    try {
-      // Send message to background script
-      chrome.runtime.sendMessage(
-        {
-          action: "sendToPursuitPal",
-          dataType: "contact",
-          data: currentContactData,
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "Error sending contact data:",
-              chrome.runtime.lastError
-            );
-            // Reset button
-            sendContactBtn.disabled = false;
-            sendContactBtn.textContent = "Send to PursuitPal";
-            return;
-          }
-
-          if (response && response.success) {
-            // Close popup after successful send
-            window.close();
-          } else {
-            console.error("Failed to send contact data:", response?.error);
-            // Reset button
-            sendContactBtn.disabled = false;
-            sendContactBtn.textContent = "Send to PursuitPal";
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error sending contact data:", error);
-      // Reset button
-      sendContactBtn.disabled = false;
-      sendContactBtn.textContent = "Send to PursuitPal";
-    }
-  });
-}
-
 // Load and display data
 async function loadData() {
+  console.log("Loading saved data from storage");
   try {
     // Load job data
     chrome.runtime.sendMessage({ action: "getJobData" }, (response) => {
@@ -266,9 +114,11 @@ async function loadData() {
       }
 
       if (response && response.data) {
+        console.log("Job data loaded successfully:", response.data);
         currentJobData = response.data;
         updateJobUI(currentJobData);
       } else {
+        console.log("No job data found in storage");
         showNoJobData();
       }
     });
@@ -281,9 +131,11 @@ async function loadData() {
       }
 
       if (response && response.data) {
+        console.log("Contact data loaded successfully:", response.data);
         currentContactData = response.data;
         updateContactUI(currentContactData);
       } else {
+        console.log("No contact data found in storage");
         showNoContactData();
       }
     });
@@ -295,7 +147,11 @@ async function loadData() {
 
 // Extract data from current page
 async function extractData(type) {
+  console.log(`Extracting ${type} data from current tab`);
   try {
+    // Show loading state first
+    showLoadingState();
+
     // Send message to background script to extract data
     chrome.runtime.sendMessage(
       {
@@ -309,6 +165,8 @@ async function extractData(type) {
         }
 
         if (response && response.success && response.data) {
+          console.log("Data extracted successfully:", response.data);
+
           if (type === "job" && response.data.company) {
             // Job data
             currentJobData = response.data;
@@ -321,22 +179,29 @@ async function extractData(type) {
             hideLoadingState();
           } else {
             // Wrong data type or incomplete data
+            console.error(
+              "Extracted data does not match the requested type:",
+              type
+            );
             showErrorState();
           }
         } else {
           // No data extracted
+          console.error("No data extracted:", response?.error);
           showErrorState();
         }
       }
     );
   } catch (error) {
     console.error("Error extracting data:", error);
+    showErrorState();
     throw error;
   }
 }
 
 // Update job UI with data
 function updateJobUI(jobData) {
+  console.log("Updating job UI with data");
   // Set text content for all job data fields
   jobPosition.textContent = jobData.position || "Untitled Position";
   jobCompany.textContent = jobData.company || "Unknown Company";
@@ -383,6 +248,7 @@ function updateJobUI(jobData) {
 
 // Update contact UI with data
 function updateContactUI(contactData) {
+  console.log("Updating contact UI with data");
   // Set contact initials
   contactInitials.textContent = getInitials(contactData.name);
 
@@ -533,4 +399,175 @@ function getInitials(name) {
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
 
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+// Setup button event listeners
+function setupButtonListeners() {
+  // Settings button - Open options page
+  settingsBtn.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  // Extract job data button
+  extractJobBtn.addEventListener("click", async () => {
+    console.log("Extract job data button clicked");
+    showLoadingState();
+    try {
+      await extractData("job");
+    } catch (error) {
+      console.error("Error extracting job data:", error);
+      showErrorState();
+    }
+  });
+
+  // Refresh job data button
+  refreshJobBtn.addEventListener("click", async () => {
+    console.log("Refresh job data button clicked");
+    showLoadingState();
+    try {
+      await extractData("job");
+    } catch (error) {
+      console.error("Error refreshing job data:", error);
+      showErrorState();
+    }
+  });
+
+  // Send job data button
+  sendJobBtn.addEventListener("click", async () => {
+    if (!currentJobData) {
+      console.log("No job data to send");
+      return;
+    }
+
+    console.log("Send job data button clicked");
+
+    // Disable button to prevent multiple clicks
+    sendJobBtn.disabled = true;
+    sendJobBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Sending...
+    `;
+
+    try {
+      // Send message to background script
+      chrome.runtime.sendMessage(
+        {
+          action: "sendToPursuitPal",
+          dataType: "job",
+          data: currentJobData,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error("Error sending job data:", chrome.runtime.lastError);
+            // Reset button
+            sendJobBtn.disabled = false;
+            sendJobBtn.textContent = "Send to PursuitPal";
+            return;
+          }
+
+          if (response && response.success) {
+            console.log("Job data sent successfully");
+            // Close popup after successful send
+            window.close();
+          } else {
+            console.error("Failed to send job data:", response?.error);
+            // Reset button
+            sendJobBtn.disabled = false;
+            sendJobBtn.textContent = "Send to PursuitPal";
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error sending job data:", error);
+      // Reset button
+      sendJobBtn.disabled = false;
+      sendJobBtn.textContent = "Send to PursuitPal";
+    }
+  });
+
+  // Extract contact data button
+  extractContactBtn.addEventListener("click", async () => {
+    console.log("Extract contact data button clicked");
+    showLoadingState();
+    try {
+      await extractData("contact");
+    } catch (error) {
+      console.error("Error extracting contact data:", error);
+      showErrorState();
+    }
+  });
+
+  // Refresh contact data button
+  refreshContactBtn.addEventListener("click", async () => {
+    console.log("Refresh contact data button clicked");
+    showLoadingState();
+    try {
+      await extractData("contact");
+    } catch (error) {
+      console.error("Error refreshing contact data:", error);
+      showErrorState();
+    }
+  });
+
+  // Send contact data button
+  sendContactBtn.addEventListener("click", async () => {
+    if (!currentContactData) {
+      console.log("No contact data to send");
+      return;
+    }
+
+    console.log("Send contact data button clicked");
+
+    // Disable button to prevent multiple clicks
+    sendContactBtn.disabled = true;
+    sendContactBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Sending...
+    `;
+
+    try {
+      // Send message to background script
+      chrome.runtime.sendMessage(
+        {
+          action: "sendToPursuitPal",
+          dataType: "contact",
+          data: currentContactData,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error sending contact data:",
+              chrome.runtime.lastError
+            );
+            // Reset button
+            sendContactBtn.disabled = false;
+            sendContactBtn.textContent = "Send to PursuitPal";
+            return;
+          }
+
+          if (response && response.success) {
+            console.log("Contact data sent successfully");
+            // Close popup after successful send
+            window.close();
+          } else {
+            console.error("Failed to send contact data:", response?.error);
+            // Reset button
+            sendContactBtn.disabled = false;
+            sendContactBtn.textContent = "Send to PursuitPal";
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error sending contact data:", error);
+      // Reset button
+      sendContactBtn.disabled = false;
+      sendContactBtn.textContent = "Send to PursuitPal";
+    }
+  });
 }

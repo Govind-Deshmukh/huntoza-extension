@@ -5,17 +5,36 @@
  * It runs on any page and determines what type of data to extract based on the URL.
  */
 
+console.log("PursuitPal content script loaded");
+
+// Listen for messages from popup or background script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log("Content script received message:", request.action);
+
+  if (request.action === "extract") {
+    // Call the main extraction function
+    const extractedData = extractData();
+    sendResponse({ data: extractedData });
+  }
+
+  return true; // Keep channel open for async response
+});
+
 // Main function to extract data from the current page
 function extractData() {
   const url = window.location.href.toLowerCase();
+  console.log("Extracting data from:", url);
 
   // Determine if we're on a job page or a LinkedIn profile
   if (isJobPostingPage(url)) {
+    console.log("Detected job posting page");
     return extractJobData();
   } else if (isLinkedInProfilePage(url)) {
+    console.log("Detected LinkedIn profile page");
     return extractLinkedInProfile();
   }
 
+  console.log("Not a recognized page type");
   return null;
 }
 
@@ -48,8 +67,10 @@ function isLinkedInProfilePage(url) {
 
 // Extract job data from various job boards
 function extractJobData() {
+  console.log("Extracting job data");
   // Determine which job platform we're on
   const platform = detectJobPlatform();
+  console.log("Detected platform:", platform);
 
   let jobData;
 
@@ -83,11 +104,18 @@ function extractJobData() {
     dateExtracted: new Date().toISOString(),
   };
 
+  console.log("Extracted job data:", jobData);
+
   // Send message to background script
-  chrome.runtime.sendMessage({
-    action: "saveJobData",
-    data: jobData,
-  });
+  chrome.runtime.sendMessage(
+    {
+      action: "saveJobData",
+      data: jobData,
+    },
+    (response) => {
+      console.log("Background script response to saveJobData:", response);
+    }
+  );
 
   return jobData;
 }
@@ -113,6 +141,7 @@ function detectJobPlatform() {
 
 // LinkedIn-specific job extraction
 function extractLinkedInJobData() {
+  console.log("Extracting LinkedIn job data");
   const jobData = {
     company: "",
     position: "",
@@ -136,6 +165,9 @@ function extractLinkedInJobData() {
     jobData.position = titleLink
       ? titleLink.textContent.trim()
       : jobTitleElement.textContent.trim();
+    console.log("Found job title:", jobData.position);
+  } else {
+    console.log("Job title element not found");
   }
 
   // Company Name
@@ -151,6 +183,7 @@ function extractLinkedInJobData() {
     const element = document.querySelector(selector);
     if (element) {
       jobData.company = element.textContent.trim();
+      console.log("Found company name:", jobData.company);
       break;
     }
   }
@@ -170,6 +203,7 @@ function extractLinkedInJobData() {
       const text = element.textContent.trim();
       if (text && !text.match(/ago|week|day|hour|minute|second|apply/i)) {
         jobData.jobLocation = text.split("·")[0].trim();
+        console.log("Found job location:", jobData.jobLocation);
         break;
       }
     }
@@ -188,6 +222,10 @@ function extractLinkedInJobData() {
     const element = document.querySelector(selector);
     if (element) {
       jobData.jobDescription = element.textContent.trim();
+      console.log(
+        "Found job description (truncated):",
+        jobData.jobDescription.substring(0, 50) + "..."
+      );
       break;
     }
   }
@@ -209,6 +247,7 @@ function extractLinkedInJobData() {
     } else if (jobData.jobDescription.match(/\bhybrid\b/i)) {
       jobData.jobType = "hybrid";
     }
+    console.log("Determined job type:", jobData.jobType);
   }
 
   // Salary - check if it's in the description
@@ -244,6 +283,7 @@ function extractLinkedInJobData() {
       }
 
       jobData.salary = { min, max, currency };
+      console.log("Found salary range:", jobData.salary);
     }
   }
 
@@ -252,6 +292,8 @@ function extractLinkedInJobData() {
 
 // Indeed-specific extraction
 function extractIndeedJobData() {
+  // Implementation as in original code
+  // ...
   const jobData = {
     company: "",
     position: "",
@@ -355,6 +397,8 @@ function extractIndeedJobData() {
 
 // Naukri-specific extraction (Added new)
 function extractNaukriJobData() {
+  // Implementation as in original code
+  // ...
   const jobData = {
     company: "",
     position: "",
@@ -418,6 +462,8 @@ function extractNaukriJobData() {
 
 // Glassdoor-specific extraction
 function extractGlassdoorJobData() {
+  // Implementation as in original code
+  // ...
   const jobData = {
     company: "",
     position: "",
@@ -507,6 +553,7 @@ function extractGlassdoorJobData() {
 
 // Generic function for other job sites
 function extractGenericJobData() {
+  console.log("Using generic job data extraction");
   // Various selectors to find company name
   const possibleCompanySelectors = [
     ".company-name",
@@ -527,6 +574,7 @@ function extractGenericJobData() {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       company = element.textContent.trim();
+      console.log("Found company name:", company);
       break;
     }
   }
@@ -536,6 +584,7 @@ function extractGenericJobData() {
     const metaCompany = document.querySelector('meta[property="og:site_name"]');
     if (metaCompany) {
       company = metaCompany.getAttribute("content");
+      console.log("Found company name from metadata:", company);
     }
   }
 
@@ -560,6 +609,7 @@ function extractGenericJobData() {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       position = element.textContent.trim();
+      console.log("Found job title:", position);
       break;
     }
   }
@@ -583,6 +633,7 @@ function extractGenericJobData() {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       jobLocation = element.textContent.trim();
+      console.log("Found job location:", jobLocation);
       break;
     }
   }
@@ -607,6 +658,10 @@ function extractGenericJobData() {
     const element = document.querySelector(selector);
     if (element && element.textContent.trim()) {
       jobDescription = element.textContent.trim();
+      console.log(
+        "Found job description (truncated):",
+        jobDescription.substring(0, 50) + "..."
+      );
       break;
     }
   }
@@ -621,6 +676,8 @@ function extractGenericJobData() {
   else if (pageText.match(/\binternship\b|\bintern\b/i)) jobType = "internship";
   else if (pageText.match(/\bremote\b|\bwork from home\b|\bwfh\b/i))
     jobType = "remote";
+
+  console.log("Determined job type:", jobType);
 
   // Initialize salary object
   const salary = {
@@ -654,6 +711,7 @@ function extractGenericJobData() {
 
     salary.min = min;
     salary.max = max;
+    console.log("Found salary range:", salary);
   }
 
   return {
@@ -668,6 +726,7 @@ function extractGenericJobData() {
 
 // Extract LinkedIn profile data
 function extractLinkedInProfile() {
+  console.log("Extracting LinkedIn profile data");
   const contactData = {
     name: "",
     email: "",
@@ -688,6 +747,9 @@ function extractLinkedInProfile() {
     document.querySelector("h1.artdeco-entity-lockup__title");
   if (nameElement) {
     contactData.name = nameElement.textContent.trim();
+    console.log("Found name:", contactData.name);
+  } else {
+    console.log("Name element not found");
   }
 
   // Position & Company
@@ -702,9 +764,17 @@ function extractLinkedInProfile() {
     if (positionMatch) {
       contactData.position = positionMatch[1]?.trim() || "";
       contactData.company = positionMatch[2]?.trim() || "";
+      console.log(
+        "Parsed position and company:",
+        contactData.position,
+        contactData.company
+      );
     } else {
       contactData.position = titleText;
+      console.log("Found position:", contactData.position);
     }
+  } else {
+    console.log("Position element not found");
   }
 
   // Location
@@ -716,6 +786,7 @@ function extractLinkedInProfile() {
     document.querySelector(".artdeco-entity-lockup__caption");
   if (locationElement) {
     contactData.location = locationElement.textContent.trim();
+    console.log("Found location:", contactData.location);
   }
 
   // About section
@@ -724,6 +795,10 @@ function extractLinkedInProfile() {
   );
   if (aboutElement) {
     contactData.about = aboutElement.textContent.trim();
+    console.log(
+      "Found about section (truncated):",
+      contactData.about.substring(0, 50) + "..."
+    );
   }
 
   // Connections
@@ -733,6 +808,7 @@ function extractLinkedInProfile() {
     ) || document.querySelector(".pv-top-card-section__connections");
   if (connectionsElement) {
     contactData.connections = connectionsElement.textContent.trim();
+    console.log("Found connections:", contactData.connections);
   }
 
   // Experience - Try to get current job
@@ -757,6 +833,7 @@ function extractLinkedInProfile() {
           date: dateElement ? dateElement.textContent.trim() : "",
         };
       });
+    console.log("Found experience items:", contactData.experience.length);
   }
 
   // Try to find email in the page content
@@ -772,6 +849,7 @@ function extractLinkedInProfile() {
     );
     if (filteredEmails.length > 0) {
       contactData.email = filteredEmails[0]; // Use the first email found
+      console.log("Found email:", contactData.email);
     }
   }
 
@@ -782,13 +860,49 @@ function extractLinkedInProfile() {
 
   if (phoneMatches && phoneMatches.length > 0) {
     contactData.phone = phoneMatches[0]; // Use the first phone number found
+    console.log("Found phone number:", contactData.phone);
   }
 
   // Send message to background script
-  chrome.runtime.sendMessage({
-    action: "saveContactData",
-    data: contactData,
-  });
+  chrome.runtime.sendMessage(
+    {
+      action: "saveContactData",
+      data: contactData,
+    },
+    (response) => {
+      console.log("Background script response to saveContactData:", response);
+    }
+  );
 
   return contactData;
 }
+
+// Auto-run data extraction on page load if we're on a supported page
+(function autoExtract() {
+  const url = window.location.href.toLowerCase();
+
+  // Check if we're on a job posting or LinkedIn profile page
+  if (isJobPostingPage(url) || isLinkedInProfilePage(url)) {
+    console.log("Auto-extracting data from page");
+
+    // Get user options
+    chrome.storage.sync.get("options", (result) => {
+      const options = result.options || { autoExtract: true };
+
+      // If auto-extract is enabled, extract data
+      if (options.autoExtract) {
+        console.log("Auto-extract enabled, extracting data");
+        // Wait for page to fully load before extracting
+        setTimeout(() => {
+          const data = extractData();
+
+          if (data) {
+            console.log("Successfully extracted data automatically");
+          }
+        }, 1500); // Small delay to ensure page is fully loaded
+      } else {
+        console.log("Auto-extract disabled");
+      }
+    });
+  }
+})();
