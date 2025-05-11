@@ -5,13 +5,19 @@
  */
 
 // DOM Elements
+const optionsForm = document.getElementById("optionsForm");
 const autoExtractCheckbox = document.getElementById("autoExtract");
-const saveButton = document.getElementById("saveOptions");
+const showBadgeCheckbox = document.getElementById("showBadge");
+const defaultPrioritySelect = document.getElementById("defaultPriority");
+const defaultCurrencySelect = document.getElementById("defaultCurrency");
 const statusMessage = document.getElementById("statusMessage");
 
 // Default options
 const defaultOptions = {
   autoExtract: true,
+  showBadge: true,
+  defaultPriority: "medium",
+  defaultCurrency: "INR",
 };
 
 // Initialize the options page
@@ -19,8 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load saved options
   loadOptions();
 
-  // Set up event listeners
-  saveButton.addEventListener("click", saveOptions);
+  // Set up form submission
+  optionsForm.addEventListener("submit", saveOptions);
 });
 
 // Load saved options from storage
@@ -30,29 +36,37 @@ function loadOptions() {
 
     // Update UI to match saved options
     autoExtractCheckbox.checked = options.autoExtract;
+    showBadgeCheckbox.checked = options.showBadge;
+    defaultPrioritySelect.value = options.defaultPriority;
+    defaultCurrencySelect.value = options.defaultCurrency;
   });
 }
 
 // Save options to storage
-function saveOptions() {
+function saveOptions(e) {
+  e.preventDefault();
+
   const options = {
     autoExtract: autoExtractCheckbox.checked,
+    showBadge: showBadgeCheckbox.checked,
+    defaultPriority: defaultPrioritySelect.value,
+    defaultCurrency: defaultCurrencySelect.value,
   };
 
   // Save to Chrome storage
   chrome.storage.sync.set({ options }, () => {
     // Show success message
-    showStatusMessage("Settings saved successfully!", "success");
+    showStatus("Settings saved successfully!", "success");
 
     // Hide message after 3 seconds
     setTimeout(() => {
-      hideStatusMessage();
+      hideStatus();
     }, 3000);
   });
 }
 
 // Show status message
-function showStatusMessage(message, type = "success") {
+function showStatus(message, type = "success") {
   statusMessage.textContent = message;
   statusMessage.classList.remove("hidden");
 
@@ -66,6 +80,6 @@ function showStatusMessage(message, type = "success") {
 }
 
 // Hide status message
-function hideStatusMessage() {
+function hideStatus() {
   statusMessage.classList.add("hidden");
 }

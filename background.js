@@ -1,565 +1,372 @@
 /**
- * PursuitPal - Background Script
+ * PursuitPal - Background Service Worker
  *
- * Handles data processing and communication between the content script,
- * popup, and the PursuitPal web application.
+ * Handles authentication, data extraction requests, and communication
+ * between the extension and the PursuitPal web app.
  */
 
-console.log("PursuitPal background script loaded");
+// Global configuration
+const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+const APP_URL = "https://pursuitpal.app";
 
-// Hardcoded URLs without config dependency
-const APP_BASE_URL = "https://pursuitpal.app";
+// Initialize extension
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("PursuitPal extension installed");
 
-// Store extracted data temporarily
-let pendingJobData = null;
-let pendingContactData = null;
-
-// Listen for messages from content scripts and popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Background script received message:", request.action);
-
-  switch (request.action) {
-    case "saveJobData":
-      // Sanitize and store job data
-      pendingJobData = sanitizeJobData(request.data);
-      chrome.storage.local.set(
-        {
-          jobData: pendingJobData,
-          jobDataTimestamp: Date.now(),
-        },
-        () => {
-          console.log("Job data saved to storage:", pendingJobData);
-          sendResponse({ success: true });
-        }
-      );
-      return true; // Keep connection open for async response
-
-    case "saveContactData":
-      // Sanitize and store contact data
-      pendingContactData = sanitizeContactData(request.data);
-      chrome.storage.local.set(
-        {
-          contactData: pendingContactData,
-          contactDataTimestamp: Date.now(),
-        },
-        () => {
-          console.log("Contact data saved to storage:", pendingContactData);
-          sendResponse({ success: true });
-        }
-      );
-      return true; // Keep connection open for async response
-
-    case "getJobData":
-      // Return stored job data to popup
-      chrome.storage.local.get(["jobData"], (result) => {
-        console.log("Returning job data to popup:", result.jobData);
-        sendResponse({ data: result.jobData || null });
-      });
-      return true; // Keep connection open for async response
-
-    case "getContactData":
-      // Return stored contact data to popup
-      chrome.storage.local.get(["contactData"], (result) => {
-        console.log("Returning contact data to popup:", result.contactData);
-        sendResponse({ data: result.contactData || null });
-      });
-      return true; // Keep connection open for async response
-
-    case "sendToPursuitPal":
-      // Open PursuitPal in a new tab with data
-      const dataType = request.dataType; // "job" or "contact"
-      const data = request.data;
-      console.log(`Sending ${dataType} data to PursuitPal:`, data);
-
-      if (dataType === "job") {
-        openJobForm(data, sendResponse);
-      } else if (dataType === "contact") {
-        openContactForm(data, sendResponse);
-      } else {
-        sendResponse({ success: false, error: "Invalid data type" });
-      }
-      return true; // Keep connection open for async response
-
-    case "extractFromCurrentTab":
-      // Request content script to extract data from current tab
-      console.log("Extract from current tab requested");
-      extractFromCurrentTab(sendResponse);
-      return true; // Keep connection open for async response
-  }
-
-  return true; // Keep channel open for async responses
+  // Set default options
+  chrome.storage.sync.set({
+    options: {
+      autoExtract: true,
+      showBadge: true,
+      defaultPriority: "medium",
+      defaultCurrency: "INR",
+    },
+  });
 });
 
-// Sanitize job data before storing
-function sanitizeJobData(data) {
-  if (!data) return null;
+// Set up message listeners
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  switch (message.action) {
+    case "checkAuth":
+      checkAuthStatus().then(sendResponse);
+      return true; // Keep the message channel open for async response
 
-  // Create a safe copy with only expected fields
-  return {
-    company: sanitizeString(data.company),
-    position: sanitizeString(data.position),
-    jobLocation: sanitizeString(data.jobLocation),
-    jobType: sanitizeString(data.jobType),
-    jobDescription: sanitizeString(data.jobDescription, 50000), // Allow longer descriptions
-    jobUrl: sanitizeUrl(data.jobUrl),
-    salary: {
-      min: sanitizeNumber(data.salary?.min),
-      max: sanitizeNumber(data.salary?.max),
-      currency: sanitizeCurrency(data.salary?.currency),
-    },
-    dateExtracted: data.dateExtracted || new Date().toISOString(),
-  };
-}
+    case "login":
+      handleLogin(message.credentials).then(sendResponse);
+      return true;
 
-// Sanitize contact data before storing
-function sanitizeContactData(data) {
-  if (!data) return null;
+    case "logout":
+      handleLogout().then(sendResponse);
+      return true;
 
-  // Create a safe copy with only expected fields
-  return {
-    name: sanitizeString(data.name),
-    email: sanitizeString(data.email),
-    phone: sanitizeString(data.phone),
-    position: sanitizeString(data.position),
-    company: sanitizeString(data.company),
-    location: sanitizeString(data.location),
-    profileUrl: sanitizeUrl(data.profileUrl),
-    about: sanitizeString(data.about, 5000),
-    connections: sanitizeString(data.connections),
-    experience: Array.isArray(data.experience)
-      ? data.experience
-          .map((exp) => ({
-            role: sanitizeString(exp.role || ""),
-            company: sanitizeString(exp.company || ""),
-            date: sanitizeString(exp.date || ""),
-          }))
-          .slice(0, 5)
-      : [], // Limit to 5 experiences
-    dateExtracted: data.dateExtracted || new Date().toISOString(),
-  };
-}
-
-// String sanitization helper
-function sanitizeString(str, maxLength = 1000) {
-  if (typeof str !== "string") return "";
-  return str.slice(0, maxLength); // Limit string length
-}
-
-// URL sanitization helper
-function sanitizeUrl(url) {
-  if (typeof url !== "string") return "";
-
-  try {
-    // Ensure URL is properly formed
-    const parsedUrl = new URL(url);
-    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
-      return "";
-    }
-    return url;
-  } catch (e) {
-    return "";
-  }
-}
-
-// Number sanitization helper
-function sanitizeNumber(num) {
-  const parsed = parseInt(num);
-  return isNaN(parsed) ? 0 : Math.max(0, parsed);
-}
-
-// Currency sanitization helper
-function sanitizeCurrency(currency) {
-  const validCurrencies = ["INR", "USD", "EUR", "GBP", "JPY"];
-  return validCurrencies.includes(currency) ? currency : "INR";
-}
-
-// Open job form in PursuitPal with extracted data
-function openJobForm(jobData, sendResponse) {
-  try {
-    console.log("Opening job form with data:", jobData);
-
-    // Store data with timestamp for the web app to pick up
-    chrome.storage.local.set(
-      {
-        pendingJobApplication: jobData,
-        pendingJobTimestamp: Date.now(),
-      },
-      () => {
-        console.log("Stored pending job application in local storage");
-      }
-    );
-
-    // Create a new tab with the job form URL
-    chrome.tabs.create({ url: `${APP_BASE_URL}/jobs/new` }, (tab) => {
-      console.log("Created new tab for job form:", tab.id);
-
-      // Execute script to inject the data after page load
-      chrome.tabs.onUpdated.addListener(function listener(
-        tabId,
-        changeInfo,
-        updatedTab
-      ) {
-        if (tabId === tab.id && changeInfo.status === "complete") {
-          console.log("Tab fully loaded, injecting script");
-          chrome.tabs.onUpdated.removeListener(listener);
-
-          // Inject script to transfer data to the web app
-          chrome.scripting
-            .executeScript({
-              target: { tabId: tab.id },
-              function: injectJobData,
-            })
-            .then(() => {
-              console.log("Job data injection script executed");
-            })
-            .catch((err) => {
-              console.error("Error executing job data injection script:", err);
-            });
-        }
-      });
-
-      sendResponse({ success: true });
-    });
-  } catch (error) {
-    console.error("Error opening job form:", error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// Open contact form in PursuitPal with extracted data
-function openContactForm(contactData, sendResponse) {
-  try {
-    console.log("Opening contact form with data:", contactData);
-
-    // Store data with timestamp for the web app to pick up
-    chrome.storage.local.set(
-      {
-        pendingContact: contactData,
-        pendingContactTimestamp: Date.now(),
-      },
-      () => {
-        console.log("Stored pending contact in local storage");
-      }
-    );
-
-    // Create a new tab with the contact form URL
-    chrome.tabs.create({ url: `${APP_BASE_URL}/contacts/new` }, (tab) => {
-      console.log("Created new tab for contact form:", tab.id);
-
-      // Execute script to inject the data after page load
-      chrome.tabs.onUpdated.addListener(function listener(
-        tabId,
-        changeInfo,
-        updatedTab
-      ) {
-        if (tabId === tab.id && changeInfo.status === "complete") {
-          console.log("Tab fully loaded, injecting script");
-          chrome.tabs.onUpdated.removeListener(listener);
-
-          // Inject script to transfer data to the web app
-          chrome.scripting
-            .executeScript({
-              target: { tabId: tab.id },
-              function: injectContactData,
-            })
-            .then(() => {
-              console.log("Contact data injection script executed");
-            })
-            .catch((err) => {
-              console.error(
-                "Error executing contact data injection script:",
-                err
-              );
-            });
-        }
-      });
-
-      sendResponse({ success: true });
-    });
-  } catch (error) {
-    console.error("Error opening contact form:", error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// Extract data from current tab
-function extractFromCurrentTab(sendResponse) {
-  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-    if (!tabs || tabs.length === 0) {
-      console.error("No active tab found");
-      sendResponse({ success: false, error: "No active tab found" });
-      return;
-    }
-
-    const activeTab = tabs[0];
-    console.log(
-      "Extracting data from active tab:",
-      activeTab.id,
-      activeTab.url
-    );
-
-    try {
-      // Check if content script is already injected
-      try {
-        // First try sending a message - if it succeeds, content script is already injected
-        chrome.tabs.sendMessage(
-          activeTab.id,
-          { action: "ping" },
-          function (response) {
-            if (chrome.runtime.lastError) {
-              // Content script not yet injected, inject it
-              console.log("Content script not yet injected, injecting now");
-              injectContentScript(activeTab.id, sendResponse);
+    case "extractJobData":
+      if (sender.tab) {
+        extractJobData(sender.tab.id).then(sendResponse);
+      } else {
+        // If called from popup without tab info, get active tab
+        chrome.tabs.query(
+          { active: true, currentWindow: true },
+          function (tabs) {
+            if (tabs && tabs.length > 0) {
+              extractJobData(tabs[0].id).then(sendResponse);
             } else {
-              // Content script already injected, send extract message
-              console.log(
-                "Content script already injected, sending extract message"
-              );
-              sendExtractMessage(activeTab.id, sendResponse);
+              sendResponse({ success: false, error: "No active tab found" });
             }
           }
         );
-      } catch (error) {
-        // Error occurred, inject content script
-        console.log("Error checking content script, will inject:", error);
-        injectContentScript(activeTab.id, sendResponse);
       }
-    } catch (error) {
-      console.error("Extraction error:", error);
-      sendResponse({ success: false, error: error.message });
-    }
-  });
-}
+      return true;
 
-// Inject content script into tab
-function injectContentScript(tabId, sendResponse) {
-  chrome.scripting
-    .executeScript({
-      target: { tabId: tabId },
-      files: ["content.js"],
-    })
-    .then(() => {
-      console.log("Content script injected");
-      // Wait a moment for script to initialize
-      setTimeout(() => {
-        sendExtractMessage(tabId, sendResponse);
-      }, 500);
-    })
-    .catch((error) => {
-      console.error("Error injecting content script:", error);
-      sendResponse({
-        success: false,
-        error: "Failed to inject content script: " + error.message,
-      });
-    });
-}
+    case "saveJobData":
+      saveJobData(message.data).then(sendResponse);
+      return true;
 
-// Send extract message to content script
-function sendExtractMessage(tabId, sendResponse) {
-  chrome.tabs.sendMessage(tabId, { action: "extract" }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.error("Error sending extract message:", chrome.runtime.lastError);
-      sendResponse({
-        success: false,
-        error: chrome.runtime.lastError.message,
-      });
-      return;
+    case "sendToApp":
+      sendDataToApp(message.data).then(sendResponse);
+      return true;
+  }
+});
+
+// Check extension authentication status
+async function checkAuthStatus() {
+  try {
+    const data = await chrome.storage.local.get([
+      "authToken",
+      "lastAuthenticated",
+      "user",
+    ]);
+
+    if (!data.authToken) {
+      return { isAuthenticated: false };
     }
 
-    if (response && response.data) {
-      console.log("Extract successful, received data:", response.data);
-      sendResponse({ success: true, data: response.data });
-    } else {
-      console.log("No data extracted");
-      sendResponse({
-        success: false,
-        error: "No data could be extracted from this page",
-      });
-    }
-  });
-}
+    // Check if token is still valid (less than 24 hours old or validate with backend)
+    const tokenAge = Date.now() - (data.lastAuthenticated || 0);
+    const isValid = tokenAge < 24 * 60 * 60 * 1000; // 24 hours
 
-// Function to inject job data into the web app (runs in page context)
-function injectJobData() {
-  console.log("Injecting job data to web app");
-  chrome.storage.local.get(["pendingJobApplication"], function (result) {
-    const jobData = result.pendingJobApplication;
+    if (!isValid) {
+      // Validate token with backend
+      const stillValid = await validateToken(data.authToken);
 
-    if (!jobData) {
-      console.log("No pending job data found");
-      return;
-    }
-
-    console.log("Found pending job data:", jobData);
-
-    // Store the data for the React app to use
-    localStorage.setItem("pendingJobData", JSON.stringify(jobData));
-
-    // Dispatch an event to notify the app
-    window.dispatchEvent(
-      new CustomEvent("jobDataAvailable", {
-        detail: { source: "chromeExtension", timestamp: Date.now() },
-      })
-    );
-
-    // Show a success notification
-    showNotification("Job data successfully transferred!");
-
-    // Clean up
-    chrome.storage.local.remove("pendingJobApplication");
-  });
-}
-
-// Function to inject contact data into the web app (runs in page context)
-function injectContactData() {
-  console.log("Injecting contact data to web app");
-  chrome.storage.local.get(["pendingContact"], function (result) {
-    const contactData = result.pendingContact;
-
-    if (!contactData) {
-      console.log("No pending contact data found");
-      return;
-    }
-
-    console.log("Found pending contact data:", contactData);
-
-    // Store the data for the React app to use
-    localStorage.setItem("pendingContactData", JSON.stringify(contactData));
-
-    // Dispatch an event to notify the app
-    window.dispatchEvent(
-      new CustomEvent("contactDataAvailable", {
-        detail: { source: "chromeExtension", timestamp: Date.now() },
-      })
-    );
-
-    // Show a success notification
-    showNotification("Contact data successfully transferred!");
-
-    // Clean up
-    chrome.storage.local.remove("pendingContact");
-  });
-}
-
-// Function to show notification (runs in page context)
-function showNotification(message, type = "success") {
-  // Primary color from the app
-  const primaryColor = "#552dec";
-  const errorColor = "#ef4444";
-  const bgColor = type === "success" ? primaryColor : errorColor;
-
-  // Create notification element
-  const notification = document.createElement("div");
-
-  // Style the notification
-  Object.assign(notification.style, {
-    position: "fixed",
-    top: "20px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    backgroundColor: bgColor,
-    color: "white",
-    padding: "12px 24px",
-    borderRadius: "8px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    zIndex: 10000,
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    fontSize: "14px",
-    transition: "opacity 0.3s",
-  });
-
-  // Add content
-  notification.textContent = message;
-
-  // Add to the page
-  document.body.appendChild(notification);
-
-  // Remove after 5 seconds
-  setTimeout(() => {
-    notification.style.opacity = "0";
-    setTimeout(() => {
-      if (notification.parentNode) {
-        document.body.removeChild(notification);
+      if (!stillValid) {
+        // Token is invalid, clear it
+        await chrome.storage.local.remove([
+          "authToken",
+          "lastAuthenticated",
+          "user",
+        ]);
+        return { isAuthenticated: false };
       }
-    }, 300);
-  }, 5000);
+
+      // Update last authenticated time
+      await chrome.storage.local.set({ lastAuthenticated: Date.now() });
+    }
+
+    return {
+      isAuthenticated: true,
+      user: data.user,
+    };
+  } catch (error) {
+    console.error("Error checking auth status:", error);
+    return { isAuthenticated: false, error: error.message };
+  }
 }
 
-// Initialize extension when installed
-chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === "install") {
-    console.log("PursuitPal extension installed");
-    // Initialize default options
-    chrome.storage.sync.set({
-      options: {
-        autoExtract: true,
+// Validate token with backend
+async function validateToken(token) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
     });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.valid === true;
+  } catch (error) {
+    console.error("Error validating token:", error);
+    return false;
   }
-});
+}
 
-// Listen for tab updates to inject content script
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only run when page is done loading
-  if (changeInfo.status !== "complete" || !tab.url) return;
-
-  // Only process http/https pages
-  if (!tab.url.startsWith("http://") && !tab.url.startsWith("https://")) return;
-
-  const url = tab.url.toLowerCase();
-
-  // Check if this is a job posting page or LinkedIn profile
-  if (isJobPostingPage(url) || isLinkedInProfilePage(url)) {
-    console.log(`Tab updated with supported page: ${url}`);
-    // Get user options
-    chrome.storage.sync.get("options", (result) => {
-      const options = result.options || { autoExtract: true };
-
-      // If auto-extract is enabled, inject the content script
-      if (options.autoExtract) {
-        console.log(
-          `Auto-extract enabled, injecting content script to tab ${tabId}`
-        );
-        chrome.scripting
-          .executeScript({
-            target: { tabId: tabId },
-            files: ["content.js"],
-          })
-          .then(() => {
-            console.log(`Content script injected into tab ${tabId}`);
-          })
-          .catch((err) =>
-            console.error("Content script injection error:", err)
-          );
-      } else {
-        console.log("Auto-extract disabled");
-      }
+// Handle login
+async function handleLogin(credentials) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(credentials),
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: errorData.message || "Login failed" };
+    }
+
+    const data = await response.json();
+
+    // Save auth data
+    await chrome.storage.local.set({
+      authToken: data.token,
+      refreshToken: data.refreshToken,
+      user: data.user,
+      lastAuthenticated: Date.now(),
+    });
+
+    return { success: true, user: data.user };
+  } catch (error) {
+    console.error("Login error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle logout
+async function handleLogout() {
+  try {
+    const { authToken } = await chrome.storage.local.get(["authToken"]);
+
+    if (authToken) {
+      // Call logout API
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
+      } catch (error) {
+        console.error("Error calling logout API:", error);
+      }
+    }
+
+    // Clear stored data regardless of API call success
+    await chrome.storage.local.remove([
+      "authToken",
+      "refreshToken",
+      "user",
+      "lastAuthenticated",
+    ]);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Logout error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Extract job data from active tab
+async function extractJobData(tabId) {
+  try {
+    // Execute content script to extract data
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      function: () => {
+        // This code runs in the content script context
+        if (window._pursuitPalExtractData) {
+          return window._pursuitPalExtractData();
+        } else {
+          return { error: "Extraction function not available" };
+        }
+      },
+    });
+
+    if (!results || !results[0] || results[0].result.error) {
+      // If extraction failed or function not available, inject content script
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["content.js"],
+      });
+
+      // Wait for content script to initialize
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Try extraction again
+      const retryResults = await chrome.scripting.executeScript({
+        target: { tabId },
+        function: () => {
+          if (window._pursuitPalExtractData) {
+            return window._pursuitPalExtractData();
+          } else {
+            return { error: "Extraction function still not available" };
+          }
+        },
+      });
+
+      if (!retryResults || !retryResults[0] || retryResults[0].result.error) {
+        return { success: false, error: "Failed to extract job data" };
+      }
+
+      return { success: true, data: retryResults[0].result };
+    }
+
+    return { success: true, data: results[0].result };
+  } catch (error) {
+    console.error("Error extracting job data:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Save job data to local storage
+async function saveJobData(data) {
+  try {
+    // Add timestamp
+    const jobData = {
+      ...data,
+      timestamp: Date.now(),
+    };
+
+    await chrome.storage.local.set({ currentJobData: jobData });
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving job data:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Send job data to PursuitPal web app
+async function sendDataToApp(data) {
+  try {
+    const { authToken } = await chrome.storage.local.get(["authToken"]);
+
+    if (!authToken) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Call API to save job data
+    const response = await fetch(`${API_BASE_URL}/jobs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        success: false,
+        error: errorData.message || "Failed to save job data",
+      };
+    }
+
+    const result = await response.json();
+
+    // If successful, get the ID of the created job
+    if (result.success && result.job && result.job._id) {
+      // Store as the most recently created job
+      await chrome.storage.local.set({
+        lastCreatedJobId: result.job._id,
+        lastCreatedJobData: result.job,
+      });
+
+      // Clear current job data
+      await chrome.storage.local.remove(["currentJobData"]);
+
+      // Create a tab to view the created job
+      chrome.tabs.create({ url: `${APP_URL}/jobs/${result.job._id}` });
+    }
+
+    return { success: true, job: result.job };
+  } catch (error) {
+    console.error("Error sending data to app:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Listen for tab updates to detect job boards
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.url) {
+    // Check if the tab is a job board
+    const isJobBoard = isJobBoardUrl(tab.url);
+
+    if (isJobBoard) {
+      // Update the extension icon to indicate this is a job board
+      chrome.action.setBadgeText({
+        tabId,
+        text: "JOB",
+      });
+
+      chrome.action.setBadgeBackgroundColor({
+        tabId,
+        color: "#552dec",
+      });
+    } else {
+      // Clear the badge
+      chrome.action.setBadgeText({
+        tabId,
+        text: "",
+      });
+    }
   }
 });
 
-// Check if a URL is a job posting page
-function isJobPostingPage(url) {
-  const jobPatterns = [
+// Check if URL is a job board
+function isJobBoardUrl(url) {
+  const jobBoardPatterns = [
     /linkedin\.com\/jobs/i,
     /indeed\.com\/viewjob/i,
     /glassdoor\.com\/job/i,
     /monster\.com\/job/i,
     /naukri\.com/i,
     /ziprecruiter\.com\/jobs/i,
+    /lever\.co\/[^\/]+\/jobs/i,
+    /greenhouse\.io\/jobs/i,
     /careers\./i,
     /jobs\./i,
     /\/jobs?\//i,
     /\/careers?\//i,
     /\/job\-details/i,
-    /lever\.co\/[^\/]+\/jobs/i,
-    /greenhouse\.io\/jobs/i,
   ];
 
-  return jobPatterns.some((pattern) => pattern.test(url));
-}
-
-// Check if a URL is a LinkedIn profile page
-function isLinkedInProfilePage(url) {
-  return /linkedin\.com\/in\//i.test(url);
+  return jobBoardPatterns.some((pattern) => pattern.test(url));
 }
