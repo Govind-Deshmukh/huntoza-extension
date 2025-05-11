@@ -5,6 +5,14 @@
  * Edit these values to match your environment setup.
  */
 
+// Support both browser extension context and service worker context
+const GLOBAL_CONTEXT =
+  typeof window !== "undefined"
+    ? window
+    : typeof self !== "undefined"
+    ? self
+    : {};
+
 const config = {
   // API endpoints
   apiBaseUrl: "https://api.pursuitpal.app/api/v1",
@@ -61,10 +69,10 @@ const config = {
   },
 };
 
-// Make the config object available globally
-window.appConfig = config;
+// Make the config object available in the current context (window or self)
+GLOBAL_CONTEXT.appConfig = config;
 
-// Export for module usage
+// Export for module usage if supported
 if (typeof module !== "undefined" && module.exports) {
   module.exports = config;
 }

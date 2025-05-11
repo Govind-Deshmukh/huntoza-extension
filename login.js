@@ -8,15 +8,9 @@
  * - Redirection after successful login
  */
 
-// Get configuration
-const config = window.configLoader
-  ? window.configLoader.getConfig()
-  : window.appConfig;
-
-// API Base URL from config
-const API_BASE_URL = config
-  ? config.apiBaseUrl
-  : "https://api.pursuitpal.app/api/v1";
+// API Base URL - defined directly to avoid config dependency
+const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+const APP_BASE_URL = "https://pursuitpal.app";
 
 // DOM Elements
 const loginForm = document.getElementById("login-form");
@@ -43,10 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Add signup link event listener
   signupLink.addEventListener("click", (e) => {
     e.preventDefault();
-    // Open signup page in a new tab using config for URL
-    const signupUrl = config
-      ? config.getAppUrl(config.routes.register)
-      : "https://pursuitpal.app/register";
+    // Open signup page in a new tab
+    const signupUrl = `${APP_BASE_URL}/register`;
     chrome.tabs.create({ url: signupUrl });
   });
 
@@ -82,10 +74,8 @@ async function handleLogin(e) {
   }
 
   try {
-    // Get login endpoint from config
-    const loginEndpoint = config
-      ? config.getApiUrl("auth/login")
-      : `${API_BASE_URL}/auth/login`;
+    // Use direct login endpoint
+    const loginEndpoint = `${API_BASE_URL}/auth/login`;
 
     // Call login API
     const response = await fetch(loginEndpoint, {
@@ -128,16 +118,15 @@ async function handleLogin(e) {
  * Save authentication data securely
  */
 async function saveAuthData(token, refreshToken, user) {
-  // Get token expiry from config or use default
-  const tokenExpiryDuration =
-    config && config.auth ? config.auth.tokenExpiry : 3600 * 1000;
+  // Default token expiry duration (1 hour)
+  const tokenExpiryDuration = 3600 * 1000;
 
   // Store tokens in Chrome's secure storage (encrypted)
   await chrome.storage.local.set({
     token: token,
     refreshToken: refreshToken,
     user: user,
-    tokenExpiry: Date.now() + tokenExpiryDuration, // Token valid based on config
+    tokenExpiry: Date.now() + tokenExpiryDuration,
   });
 }
 
@@ -186,10 +175,8 @@ async function checkAuthentication() {
  * Refresh the access token using refresh token
  */
 async function refreshAccessToken(refreshToken) {
-  // Get refresh token endpoint from config
-  const refreshEndpoint = config
-    ? config.getApiUrl("auth/refresh-token")
-    : `${API_BASE_URL}/auth/refresh-token`;
+  // Use direct refresh token endpoint
+  const refreshEndpoint = `${API_BASE_URL}/auth/refresh-token`;
 
   // Call refresh token API
   const response = await fetch(refreshEndpoint, {
@@ -206,15 +193,14 @@ async function refreshAccessToken(refreshToken) {
     throw new Error("Failed to refresh token");
   }
 
-  // Get token expiry from config or use default
-  const tokenExpiryDuration =
-    config && config.auth ? config.auth.tokenExpiry : 3600 * 1000;
+  // Default token expiry (1 hour)
+  const tokenExpiryDuration = 3600 * 1000;
 
   // Save new tokens
   await chrome.storage.local.set({
     token: data.token,
     refreshToken: data.refreshToken,
-    tokenExpiry: Date.now() + tokenExpiryDuration, // Token valid based on config
+    tokenExpiry: Date.now() + tokenExpiryDuration,
   });
 
   return { token: data.token, refreshToken: data.refreshToken };

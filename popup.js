@@ -40,8 +40,9 @@ let currentJobData = null;
 // Current user data
 let currentUser = null;
 
-// API Base URL
+// API Base URL - define this directly rather than relying on config
 const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+const APP_BASE_URL = "https://pursuitpal.app";
 
 // Initialize the popup
 document.addEventListener("DOMContentLoaded", async () => {
@@ -389,9 +390,7 @@ if (createBtn) {
       chrome.storage.local.set({ pendingJobApplication: jobData });
 
       // Construct the URL for the job form
-      const appUrl = config
-        ? config.getAppUrl(config.routes.jobs.new)
-        : "https://pursuitpal.app/jobs/new";
+      const appUrl = `${APP_BASE_URL}/jobs/new`;
 
       // Create a new tab with the job form
       chrome.tabs.create({ url: appUrl }, (tab) => {

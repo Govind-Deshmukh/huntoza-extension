@@ -10,13 +10,27 @@
 
 class AuthService {
   constructor() {
-    // Get configuration
-    this.config = window.configLoader
-      ? window.configLoader.getConfig()
-      : window.appConfig;
-    this.API_BASE_URL = this.config
-      ? this.config.apiBaseUrl
-      : "https://api.pursuitpal.app/api/v1";
+    // Define default API URL without reliance on window/config
+    this.API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+
+    // Try to get config if available (will only work in UI contexts, not in service worker)
+    try {
+      if (
+        typeof window !== "undefined" &&
+        (window.configLoader || window.appConfig)
+      ) {
+        const config = window.configLoader
+          ? window.configLoader.getConfig()
+          : window.appConfig;
+        if (config && config.apiBaseUrl) {
+          this.API_BASE_URL = config.apiBaseUrl;
+        }
+      }
+    } catch (error) {
+      console.error("Config loading error in AuthService:", error);
+      // Continue with default API_BASE_URL
+    }
+
     this.isRefreshingToken = false;
     this.tokenRefreshPromise = null;
     this.pendingRequests = [];
@@ -131,9 +145,11 @@ class AuthService {
       };
 
       // Make the API request
-      const requestUrl = this.config
-        ? this.config.getApiUrl(endpoint)
-        : `${this.API_BASE_URL}${endpoint}`;
+      // Build the URL based on whether endpoint starts with /
+      const requestUrl = endpoint.startsWith("/")
+        ? `${this.API_BASE_URL}${endpoint}`
+        : `${this.API_BASE_URL}/${endpoint}`;
+
       const response = await fetch(requestUrl, {
         ...options,
         headers,
@@ -188,10 +204,8 @@ class AuthService {
             throw new Error("No refresh token available");
           }
 
-          // Get refresh token endpoint from config
-          const refreshUrl = this.config
-            ? this.config.getApiUrl("auth/refresh-token")
-            : `${this.API_BASE_URL}/auth/refresh-token`;
+          // Build refresh token endpoint
+          const refreshUrl = `${this.API_BASE_URL}/auth/refresh-token`;
 
           // Call refresh token API
           const response = await fetch(refreshUrl, {
@@ -208,11 +222,8 @@ class AuthService {
             throw new Error(data.message || "Failed to refresh token");
           }
 
-          // Get token expiry from config or use default
-          const tokenExpiryDuration =
-            this.config && this.config.auth
-              ? this.config.auth.tokenExpiry
-              : 3600 * 1000;
+          // Default token expiry of 1 hour if not specified
+          const tokenExpiryDuration = 3600 * 1000;
 
           // Save new tokens
           await chrome.storage.local.set({
@@ -260,10 +271,8 @@ class AuthService {
       const authData = await this.getAuthData();
       if (authData.token) {
         try {
-          // Get logout endpoint from config
-          const logoutUrl = this.config
-            ? this.config.getApiUrl("auth/logout")
-            : `${this.API_BASE_URL}/auth/logout`;
+          // Logout endpoint
+          const logoutUrl = `${this.API_BASE_URL}/auth/logout`;
 
           await fetch(logoutUrl, {
             method: "POST",
@@ -299,6 +308,11 @@ class AuthService {
 const authService = new AuthService();
 
 // Make it available globally for non-module scripts
+if (typeof self !== "undefined") {
+  self.authService = authService;
+}
+
+// Also make available in window context if it exists
 if (typeof window !== "undefined") {
   window.authService = authService;
 }

@@ -4,7 +4,8 @@
  * Improved version with better security, memory management, and error handling
  */
 
-// Import authentication service
+// Import scripts must be at the top and use the full paths
+// This is critical for service workers to load correctly
 importScripts("auth-service.js");
 
 // Constants
