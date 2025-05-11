@@ -12,6 +12,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'; frame-ancestors 'none'"
   },
   "action": {
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "images/icon.png",
       "48": "images/icon.png",
@@ -20,7 +21,8 @@
     "default_title": "PursuitPal"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "icons": {
     "16": "images/icon.png",
@@ -30,7 +32,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["auth-service.js", "sidebar.html"],
+      "resources": ["sidebar.html"],
       "matches": ["<all_urls>"]
     }
   ],

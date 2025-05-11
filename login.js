@@ -53,9 +53,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.tabs.create({ url: signupUrl });
   });
 
-  // Implement password field show/hide toggle
-  setupPasswordToggle();
-
   // Fill in saved email if available and check Remember Me
   chrome.storage.sync.get(["rememberedEmail"], (result) => {
     if (result.rememberedEmail) {
@@ -146,57 +143,9 @@ function disableLoginForm() {
 }
 
 /**
- * Setup password toggle visibility
- */
-function setupPasswordToggle() {
-  const passwordContainer = passwordInput.parentElement;
-
-  // Create toggle button
-  const toggleButton = document.createElement("button");
-  toggleButton.type = "button";
-  toggleButton.className =
-    "absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none";
-  toggleButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-  `;
-
-  // Add event listener
-  toggleButton.addEventListener("click", () => {
-    if (passwordInput.type === "password") {
-      passwordInput.type = "text";
-      toggleButton.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-        </svg>
-      `;
-    } else {
-      passwordInput.type = "password";
-      toggleButton.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
-      `;
-    }
-  });
-
-  // Position the container relatively
-  passwordContainer.style.position = "relative";
-
-  // Add button to container
-  passwordContainer.appendChild(toggleButton);
-}
-
-/**
  * Apply security features to the login page
  */
 function applySecurityFeatures() {
-  // Add password strength meter
-  addPasswordStrengthMeter();
-
   // Implement throttling on form submission
   let lastSubmitTime = 0;
   const THROTTLE_DELAY = 1000; // 1 second
@@ -216,94 +165,6 @@ function applySecurityFeatures() {
   // Add autocomplete attributes for better security
   emailInput.setAttribute("autocomplete", "username");
   passwordInput.setAttribute("autocomplete", "current-password");
-}
-
-/**
- * Add password strength meter
- */
-function addPasswordStrengthMeter() {
-  const passwordContainer = passwordInput.parentElement;
-
-  // Create strength meter
-  const strengthMeter = document.createElement("div");
-  strengthMeter.className =
-    "w-full h-1 mt-1 bg-gray-200 rounded-full overflow-hidden hidden";
-
-  const strengthBar = document.createElement("div");
-  strengthBar.className = "h-full transition-all duration-300 ease-in-out";
-  strengthMeter.appendChild(strengthBar);
-
-  // Create strength text
-  const strengthText = document.createElement("div");
-  strengthText.className = "text-xs mt-1 hidden";
-
-  // Add elements to container
-  passwordContainer.appendChild(strengthMeter);
-  passwordContainer.appendChild(strengthText);
-
-  // Add event listener to password input
-  passwordInput.addEventListener("input", () => {
-    const password = passwordInput.value;
-    if (password.length > 0) {
-      strengthMeter.classList.remove("hidden");
-      strengthText.classList.remove("hidden");
-
-      const strength = checkPasswordStrength(password);
-      updatePasswordStrengthUI(strength, strengthBar, strengthText);
-    } else {
-      strengthMeter.classList.add("hidden");
-      strengthText.classList.add("hidden");
-    }
-  });
-}
-
-/**
- * Check password strength
- * @param {string} password Password to check
- * @returns {number} Strength score (0-4)
- */
-function checkPasswordStrength(password) {
-  let score = 0;
-
-  // Length check
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-
-  // Character variety checks
-  if (/[A-Z]/.test(password)) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  // Normalize score to 0-4
-  return Math.min(4, Math.floor(score / 1.5));
-}
-
-/**
- * Update password strength UI
- */
-function updatePasswordStrengthUI(strength, bar, text) {
-  // Update bar color and width
-  const colors = [
-    "bg-red-500",
-    "bg-orange-500",
-    "bg-yellow-500",
-    "bg-green-400",
-    "bg-green-500",
-  ];
-  const widths = ["w-1/4", "w-2/4", "w-3/4", "w-full", "w-full"];
-  const messages = ["Very weak", "Weak", "Medium", "Strong", "Very strong"];
-
-  // Remove all possible classes
-  bar.className = "h-full transition-all duration-300 ease-in-out";
-
-  // Add appropriate classes
-  bar.classList.add(colors[strength]);
-  bar.classList.add(widths[strength]);
-
-  // Update text
-  text.textContent = messages[strength];
-  text.className = `text-xs mt-1 ${colors[strength].replace("bg-", "text-")}`;
 }
 
 /**

@@ -21,9 +21,6 @@ class AuthService {
     // Default token expiration time (1 hour in milliseconds)
     this.TOKEN_EXPIRY_DURATION = 3600 * 1000;
 
-    // Flag to indicate if we're in a secure context
-    this.isSecureContext = window.isSecureContext;
-
     // Initialize CSRF protection
     this.csrfToken = null;
     this.initCsrfProtection();
@@ -209,21 +206,13 @@ class AuthService {
         ...options.headers,
       };
 
-      // Set up request timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
       // Make the API request
       const requestUrl = `${this.API_BASE_URL}${endpoint}`;
       const response = await fetch(requestUrl, {
         ...options,
         headers,
         credentials: "include", // Include cookies if available
-        signal: controller.signal,
       });
-
-      // Clear timeout
-      clearTimeout(timeoutId);
 
       // If unauthorized, try to refresh token and retry
       if (response.status === 401) {
@@ -263,11 +252,6 @@ class AuthService {
 
       return data;
     } catch (error) {
-      // Handle specific errors
-      if (error.name === "AbortError") {
-        throw new Error("Request timed out. Please try again.");
-      }
-
       console.error("API request error:", error);
       throw error;
     }
@@ -523,10 +507,16 @@ class AuthService {
   }
 }
 
-// Export as singleton
+// Create a new instance of AuthService
 const authService = new AuthService();
 
-// Make it available globally for non-module scripts
-if (typeof window !== "undefined") {
-  window.authService = authService;
+// Check if we're in a browser context (where window exists)
+if (typeof self !== "undefined" && typeof self.window !== "undefined") {
+  // Make authService available globally in browser contexts only
+  self.window.authService = authService;
+}
+
+// Export for use in ESM modules or CommonJS
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { authService };
 }
