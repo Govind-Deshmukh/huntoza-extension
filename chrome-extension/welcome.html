@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to PursuitPal</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+    />
+    <style>
+      :root {
+        --primary-color: #552dec;
+        --primary-light: #6b44f0;
+        --primary-dark: #4425be;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .btn-primary {
+        background-color: var(--primary-color);
+      }
+
+      .btn-primary:hover {
+        background-color: var(--primary-light);
+      }
+
+      .text-primary {
+        color: var(--primary-color);
+      }
+
+      .bg-primary {
+        background-color: var(--primary-color);
+      }
+
+      .border-primary {
+        border-color: var(--primary-color);
+      }
+
+      .feature-card {
+        transition: all 0.3s ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="text-center mb-12">
+        <div class="flex justify-center mb-4">
+          <svg
+            width="80"
+            height="80"
+            viewBox="0 0 32 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 4.2c2.337 0 4.2 1.863 4.2 4.2s-1.863 4.2-4.2 4.2-4.2-1.863-4.2-4.2 1.863-4.2 4.2-4.2zm0 19.74c-3.5 0-6.65-1.75-8.4-4.55 0-2.8 5.6-4.34 8.4-4.34s8.4 1.54 8.4 4.34c-1.75 2.8-4.9 4.55-8.4 4.55z"
+              fill="#552dec"
+            />
+          </svg>
+        </div>
+        <h1 class="text-4xl font-bold text-gray-900">Welcome to PursuitPal</h1>
+        <p class="mt-3 text-xl text-gray-600 max-w-2xl mx-auto">
+          Your intelligent job application tracking assistant
+        </p>
+      </div>
+
+      <!-- Features -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        <!-- Feature 1 -->
+        <div class="feature-card bg-white rounded-lg shadow-md px-6 py-8">
+          <div
+            class="h-12 w-12 rounded-md bg-primary-light flex items-center justify-center text-white mb-4"
+          >
+            <svg
+              class="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+              />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-gray-900">
+            Automatic Extraction
+          </h3>
+          <p class="mt-2 text-sm text-gray-600">
+            Visit any job posting page and PursuitPal will automatically extract
+            job details with one click.
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card bg-white rounded-lg shadow-md px-6 py-8">
+          <div
+            class="h-12 w-12 rounded-md bg-primary-light flex items-center justify-center text-white mb-4"
+          >
+            <svg
+              class="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+              />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-gray-900">Easy Editing</h3>
+          <p class="mt-2 text-sm text-gray-600">
+            Preview and edit job details before saving them to your PursuitPal
+            account.
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card bg-white rounded-lg shadow-md px-6 py-8">
+          <div
+            class="h-12 w-12 rounded-md bg-primary-light flex items-center justify-center text-white mb-4"
+          >
+            <svg
+              class="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-gray-900">One-Click Save</h3>
+          <p class="mt-2 text-sm text-gray-600">
+            Save job applications directly to your PursuitPal account with a
+            single click.
+          </p>
+        </div>
+      </div>
+
+      <!-- Getting Started Steps -->
+      <div class="bg-white shadow rounded-lg overflow-hidden mb-12">
+        <div class="px-6 py-5 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-900">Getting Started</h2>
+        </div>
+        <div class="px-6 py-6">
+          <ol class="space-y-6">
+            <li class="flex">
+              <div class="flex-shrink-0">
+                <div
+                  class="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold"
+                >
+                  1
+                </div>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                  Sign in to your PursuitPal account
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                  Click the PursuitPal extension icon and sign in using your
+                  existing account credentials.
+                </p>
+              </div>
+            </li>
+            <li class="flex">
+              <div class="flex-shrink-0">
+                <div
+                  class="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold"
+                >
+                  2
+                </div>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                  Visit a job posting page
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                  Browse job boards like LinkedIn, Indeed, Glassdoor, Naukri or
+                  others. The extension icon will show a "JOB" badge when a job
+                  posting is detected.
+                </p>
+              </div>
+            </li>
+            <li class="flex">
+              <div class="flex-shrink-0">
+                <div
+                  class="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold"
+                >
+                  3
+                </div>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                  Extract and review job details
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                  Click the extension icon to automatically extract job details.
+                  Review and edit them if needed.
+                </p>
+              </div>
+            </li>
+            <li class="flex">
+              <div class="flex-shrink-0">
+                <div
+                  class="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold"
+                >
+                  4
+                </div>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                  Save to your account
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                  Click "Save to PursuitPal" to add the job to your account.
+                  You'll be redirected to the PursuitPal web app.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Tips and Tricks -->
+      <div class="bg-white shadow rounded-lg overflow-hidden mb-12">
+        <div class="px-6 py-5 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-900">Tips and Tricks</h2>
+        </div>
+        <div class="px-6 py-6">
+          <ul class="space-y-4">
+            <li class="flex items-start">
+              <div class="flex-shrink-0 mt-0.5">
+                <svg
+                  class="h-5 w-5 text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+              <p class="ml-3 text-sm text-gray-600">
+                <span class="font-medium text-gray-900">Editable fields</span> -
+                All fields in the preview are editable. Click on any field to
+                modify it before saving.
+              </p>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 mt-0.5">
+                <svg
+                  class="h-5 w-5 text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+              <p class="ml-3 text-sm text-gray-600">
+                <span class="font-medium text-gray-900">Auto-extraction</span> -
+                Enable auto-extraction in the extension settings to
+                automatically extract job details when visiting a job page.
+              </p>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 mt-0.5">
+                <svg
+                  class="h-5 w-5 text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+              <p class="ml-3 text-sm text-gray-600">
+                <span class="font-medium text-gray-900">Default settings</span>
+                - Configure your default currency, priority, and other
+                preferences in the extension settings.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Customize Settings -->
+      <div class="bg-white shadow rounded-lg overflow-hidden mb-12">
+        <div class="px-6 py-5 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-900">
+            Customize Your Settings
+          </h2>
+        </div>
+        <div class="px-6 py-6">
+          <p class="text-sm text-gray-600 mb-4">
+            You can customize the extension behavior to match your preferences:
+          </p>
+
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <ol class="space-y-3 text-sm text-gray-600">
+              <li class="flex items-start">
+                <span class="font-medium mr-2">1.</span>
+                Click the PursuitPal extension icon in your browser toolbar
+              </li>
+              <li class="flex items-start">
+                <span class="font-medium mr-2">2.</span>
+                Click the "Settings" link at the bottom of the popup
+              </li>
+              <li class="flex items-start">
+                <span class="font-medium mr-2">3.</span>
+                Adjust your preferences for auto-extraction, notifications,
+                default values, and more
+              </li>
+              <li class="flex items-start">
+                <span class="font-medium mr-2">4.</span>
+                Click "Save Settings" to apply your changes
+              </li>
+            </ol>
+          </div>
+
+          <div class="mt-4">
+            <a
+              href="options.html"
+              class="text-primary hover:text-primary-light font-medium"
+            >
+              Go to Settings →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Button Section -->
+      <div class="text-center">
+        <a
+          href="https://pursuitpal.app"
+          target="_blank"
+          class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+        >
+          Open PursuitPal Web App
+        </a>
+
+        <p class="mt-4 text-sm text-gray-600">
+          Don't have an account?
+          <a
+            href="https://pursuitpal.app/signup"
+            target="_blank"
+            class="text-primary hover:text-primary-light font-medium"
+            >Sign up</a
+          >
+          for free.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // Simple script to add some interactivity
+      document.addEventListener("DOMContentLoaded", function () {
+        // Add smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+          anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+
+            document.querySelector(this.getAttribute("href")).scrollIntoView({
+              behavior: "smooth",
+            });
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
