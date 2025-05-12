@@ -283,61 +283,19 @@ async function sendDataToApp(data) {
       return { success: false, error: "Not authenticated" };
     }
 
-    // FIRST, store the current job data regardless of API status
+    // Store the job data in localStorage for the web app to access
     await browser.storage.local.set({
-      lastCreatedJobData: data,
+      pendingJobData: JSON.stringify(data),
     });
 
-    // Create a tab to view the job form
-    const newTab = await browser.tabs.create({ url: `${APP_URL}/jobs/new` });
+    console.log("Stored pendingJobData for web app:", data);
 
-    // Now try to call API to save job data
-    try {
-      const response = await fetch(`${API_BASE_URL}/jobs`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(data),
-      });
+    // Open the job form page - that's it!
+    await browser.tabs.create({
+      url: `${APP_URL}/jobs/new`,
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error:", errorData);
-        // Even though API failed, we've already created the tab
-        return { success: true, message: "Form opened but API save failed" };
-      }
-
-      const result = await response.json();
-
-      // If successful, update the job ID
-      if (result.success && result.job && result.job._id) {
-        // Store as the most recently created job
-        await browser.storage.local.set({
-          lastCreatedJobId: result.job._id,
-          lastCreatedJobData: result.job,
-        });
-
-        // Clear current job data
-        await browser.storage.local.remove(["currentJobData"]);
-
-        // If we have a job ID, redirect to the job details page
-        try {
-          await browser.tabs.update(newTab.id, {
-            url: `${APP_URL}/jobs/${result.job._id}`,
-          });
-        } catch (tabError) {
-          console.error("Error updating tab:", tabError);
-        }
-      }
-
-      return { success: true, job: result.job };
-    } catch (apiError) {
-      console.error("API communication error:", apiError);
-      // Even though API failed, we've already created the tab with the form
-      return { success: true, message: "Form opened but API save failed" };
-    }
+    return { success: true, message: "Form opened with data" };
   } catch (error) {
     console.error("Error sending data to app:", error);
     return { success: false, error: error.message };
@@ -374,50 +332,66 @@ async function handleJobFormPage(tabId) {
 // Listen for tab updates to detect job boards
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
-    // Check if the tab is a job board
-    const isJobBoard = isJobBoardUrl(tab.url);
-
-    if (isJobBoard) {
-      // Update the extension icon to indicate this is a job board
-      browser.browserAction.setBadgeText({
-        tabId,
-        text: "JOB",
-      });
-
+    // Update badge for job board sites
+    if (isJobBoardUrl(tab.url)) {
+      browser.browserAction.setBadgeText({ tabId, text: "JOB" });
       browser.browserAction.setBadgeBackgroundColor({
         tabId,
         color: "#552dec",
       });
     } else {
-      // Clear the badge
-      browser.browserAction.setBadgeText({
-        tabId,
-        text: "",
-      });
+      browser.browserAction.setBadgeText({ tabId, text: "" });
     }
 
-    // If we're on the PursuitPal new job form page, check if we need to inject data
-    if (
-      tab.url.includes(`${APP_URL}/jobs/new`) ||
-      tab.url.includes(`${APP_URL}/jobs/edit`)
-    ) {
-      // Wait a bit for the page to fully load and React to initialize
-      setTimeout(() => {
-        browser.tabs
-          .sendMessage(tabId, { action: "checkForJobData" })
-          .then((response) => {
-            if (response && response.ready) {
-              handleJobFormPage(tabId);
-            }
-          })
-          .catch((error) => {
-            console.error("Error checking for job data:", error);
-          });
-      }, 1000);
+    // If we're on the job creation page, inject the data
+    if (tab.url.includes(`${APP_URL}/jobs/new`)) {
+      console.log("Detected job creation page");
+
+      // Get stored job data
+      browser.storage.local.get(["pendingJobData"]).then((data) => {
+        if (data.pendingJobData) {
+          console.log("Found pending job data to inject");
+
+          // Wait a moment for the page to initialize
+          setTimeout(() => {
+            // Inject the data into localStorage
+            browser.tabs
+              .executeScript(tabId, {
+                code: `
+                try {
+                  localStorage.setItem('pendingJobData', '${data.pendingJobData.replace(
+                    /'/g,
+                    "\\'"
+                  )}');
+                  console.log("Successfully injected job data to localStorage");
+                  
+                  // Notify the app
+                  window.dispatchEvent(new CustomEvent('jobDataAvailable', {
+                    detail: { source: 'chromeExtension' }
+                  }));
+                  
+                  true;
+                } catch (e) {
+                  console.error("Failed to inject job data:", e);
+                  false;
+                }
+              `,
+              })
+              .then((result) => {
+                if (result && result[0]) {
+                  // Remove from extension storage to prevent duplicates
+                  browser.storage.local.remove(["pendingJobData"]);
+                }
+              })
+              .catch((err) => {
+                console.error("Error injecting data:", err);
+              });
+          }, 1000);
+        }
+      });
     }
   }
 });
-
 function isJobBoardUrl(url) {
   const jobBoardPatterns = [
     /linkedin\.com\/jobs/i,
