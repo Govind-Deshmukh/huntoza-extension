@@ -1126,3 +1126,38 @@ function showNotification(message, type = "success") {
     }, 300);
   }, 3000);
 }
+
+function checkForExtensionData() {
+  try {
+    const pendingJobData = localStorage.getItem("pendingJobData");
+    if (pendingJobData) {
+      console.log("Found job data in localStorage");
+
+      // Parse data to make sure it's valid
+      JSON.parse(pendingJobData);
+
+      // Notify application
+      window.dispatchEvent(
+        new CustomEvent("jobDataAvailable", {
+          detail: { source: "chromeExtension" },
+        })
+      );
+
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error checking for extension data:", error);
+    return false;
+  }
+}
+
+// Update the window listener to check on load
+if (window.location.href.includes(`${APP_URL}/jobs/new`)) {
+  console.log("PursuitPal job form page detected");
+
+  // Run checks at different times to ensure we catch the data
+  setTimeout(checkForExtensionData, 500);
+  setTimeout(checkForExtensionData, 1000);
+  setTimeout(checkForExtensionData, 2000);
+}

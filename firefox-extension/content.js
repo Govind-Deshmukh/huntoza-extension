@@ -956,25 +956,39 @@ function triggerInputEvent(element) {
 }
 
 if (window.location.href.includes(`${APP_URL}/jobs/new`)) {
+  setTimeout(checkForExtensionData, 500);
+  setTimeout(checkForExtensionData, 1000);
+  setTimeout(checkForExtensionData, 2000);
+}
+
+if (window.location.href.includes(`${APP_URL}/jobs/new`)) {
   console.log("PursuitPal job form page detected");
 
   // Function to check for extension data
-  const checkForExtensionData = () => {
-    const pendingJobData = localStorage.getItem("pendingJobData");
-    if (pendingJobData) {
-      console.log("Found job data in localStorage");
+  function checkForExtensionData() {
+    try {
+      const pendingJobData = localStorage.getItem("pendingJobData");
+      if (pendingJobData) {
+        console.log("Found job data in localStorage");
 
-      // Notify application
-      window.dispatchEvent(
-        new CustomEvent("jobDataAvailable", {
-          detail: { source: "chromeExtension" },
-        })
-      );
+        // Parse data to make sure it's valid
+        JSON.parse(pendingJobData);
 
-      return true;
+        // Notify application
+        window.dispatchEvent(
+          new CustomEvent("jobDataAvailable", {
+            detail: { source: "chromeExtension" },
+          })
+        );
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking for extension data:", error);
+      return false;
     }
-    return false;
-  };
+  }
 
   // Run checks at different times to ensure we catch the data
   document.addEventListener("DOMContentLoaded", () => {

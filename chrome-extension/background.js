@@ -276,7 +276,6 @@ async function saveJobData(data) {
   }
 }
 
-// Send job data to PursuitPal web app
 async function sendDataToApp(data) {
   try {
     const { authToken } = await chrome.storage.local.get(["authToken"]);
@@ -287,59 +286,15 @@ async function sendDataToApp(data) {
 
     // FIRST, store the current job data regardless of API status
     await chrome.storage.local.set({
-      lastCreatedJobData: data,
+      pendingJobData: JSON.stringify(data),
     });
+
+    console.log("Stored pendingJobData for web app:", data);
 
     // Create a tab to view the job form
     const newTab = await chrome.tabs.create({ url: `${APP_URL}/jobs/new` });
 
-    // Now try to call API to save job data
-    try {
-      const response = await fetch(`${API_BASE_URL}/jobs`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error:", errorData);
-        // Even though API failed, we've already created the tab
-        return { success: true, message: "Form opened but API save failed" };
-      }
-
-      const result = await response.json();
-
-      // If successful, update the job ID
-      if (result.success && result.job && result.job._id) {
-        // Store as the most recently created job
-        await chrome.storage.local.set({
-          lastCreatedJobId: result.job._id,
-          lastCreatedJobData: result.job,
-        });
-
-        // Clear current job data
-        await chrome.storage.local.remove(["currentJobData"]);
-
-        // If we have a job ID, redirect to the job details page
-        try {
-          await chrome.tabs.update(newTab.id, {
-            url: `${APP_URL}/jobs/${result.job._id}`,
-          });
-        } catch (tabError) {
-          console.error("Error updating tab:", tabError);
-        }
-      }
-
-      return { success: true, job: result.job };
-    } catch (apiError) {
-      console.error("API communication error:", apiError);
-      // Even though API failed, we've already created the tab with the form
-      return { success: true, message: "Form opened but API save failed" };
-    }
+    return { success: true, message: "Form opened with data" };
   } catch (error) {
     console.error("Error sending data to app:", error);
     return { success: false, error: error.message };

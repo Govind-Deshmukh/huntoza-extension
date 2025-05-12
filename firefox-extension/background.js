@@ -273,7 +273,6 @@ async function saveJobData(data) {
   }
 }
 
-// Send job data to PursuitPal web app
 async function sendDataToApp(data) {
   try {
     const storedData = await browser.storage.local.get(["authToken"]);
@@ -290,7 +289,7 @@ async function sendDataToApp(data) {
 
     console.log("Stored pendingJobData for web app:", data);
 
-    // Open the job form page - that's it!
+    // Open the job form page
     await browser.tabs.create({
       url: `${APP_URL}/jobs/new`,
     });
@@ -329,28 +328,16 @@ async function handleJobFormPage(tabId) {
   }
 }
 
-// Listen for tab updates to detect job boards
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
-    // Update badge for job board sites
-    if (isJobBoardUrl(tab.url)) {
-      browser.browserAction.setBadgeText({ tabId, text: "JOB" });
-      browser.browserAction.setBadgeBackgroundColor({
-        tabId,
-        color: "#552dec",
-      });
-    } else {
-      browser.browserAction.setBadgeText({ tabId, text: "" });
-    }
-
-    // If we're on the job creation page, inject the data
-    if (tab.url.includes(`${APP_URL}/jobs/new`)) {
+    // If we're on the PursuitPal new job form page, inject the pending job data
+    if (tab.url.includes(`pursuitpal.app/jobs/new`)) {
       console.log("Detected job creation page");
 
       // Get stored job data
       browser.storage.local.get(["pendingJobData"]).then((data) => {
         if (data.pendingJobData) {
-          console.log("Found pending job data to inject");
+          console.log("Found pending job data to inject:", data.pendingJobData);
 
           // Wait a moment for the page to initialize
           setTimeout(() => {
@@ -365,7 +352,7 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                   )}');
                   console.log("Successfully injected job data to localStorage");
                   
-                  // Notify the app
+                  // Notify the app that data is available
                   window.dispatchEvent(new CustomEvent('jobDataAvailable', {
                     detail: { source: 'chromeExtension' }
                   }));
@@ -392,6 +379,7 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
   }
 });
+
 function isJobBoardUrl(url) {
   const jobBoardPatterns = [
     /linkedin\.com\/jobs/i,
