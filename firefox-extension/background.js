@@ -418,14 +418,14 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Check if URL is a job board
 function isJobBoardUrl(url) {
   const jobBoardPatterns = [
     /linkedin\.com\/jobs/i,
     /indeed\.com\/viewjob/i,
     /glassdoor\.com\/job/i,
     /monster\.com\/job/i,
-    /naukri\.com/i,
+    /naukri\.com\/job-listings/i,
+    /naukri\.com\/.+-jobs/i,
     /ziprecruiter\.com\/jobs/i,
     /lever\.co\/[^\/]+\/jobs/i,
     /greenhouse\.io\/jobs/i,
