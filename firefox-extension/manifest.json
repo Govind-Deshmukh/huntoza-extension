@@ -23,6 +23,15 @@
   "background": {
     "scripts": ["background.js"]
   },
+  "commands": {
+    "extract-job": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Extract and save current job"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

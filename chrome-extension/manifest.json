@@ -13,6 +13,15 @@
       "128": "images/icon.png"
     }
   },
+  "commands": {
+    "extract-job": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Extract and save current job"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
