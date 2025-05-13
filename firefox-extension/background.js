@@ -1,12 +1,14 @@
 /**
- * PursuitPal - Background Service Worker
+ * background.js - Background Service Worker
  *
  * Handles authentication, data extraction requests, and communication
  * between the extension and the PursuitPal web app.
  */
 
+import * as api from "./utils/api.js";
+import { showBrowserNotification, updateBadge } from "./utils/notification.js";
+
 // Global configuration
-const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
 const APP_URL = "https://pursuitpal.app";
 
 // Initialize extension
@@ -21,6 +23,11 @@ browser.runtime.onInstalled.addListener(() => {
       defaultPriority: "medium",
       defaultCurrency: "INR",
     },
+  });
+
+  // Show welcome page
+  browser.tabs.create({
+    url: "welcome.html",
   });
 });
 
@@ -95,7 +102,7 @@ async function checkAuthStatus() {
 
     if (!isValid) {
       // Validate token with backend
-      const stillValid = await validateToken(data.authToken);
+      const stillValid = await api.validateToken(data.authToken);
 
       if (!stillValid) {
         // Token is invalid, clear it
@@ -121,56 +128,20 @@ async function checkAuthStatus() {
   }
 }
 
-// Validate token with backend
-async function validateToken(token) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/validate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      return false;
-    }
-
-    const data = await response.json();
-    return data.valid === true;
-  } catch (error) {
-    console.error("Error validating token:", error);
-    return false;
-  }
-}
-
 // Handle login
 async function handleLogin(credentials) {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(credentials),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      return { success: false, error: errorData.message || "Login failed" };
-    }
-
-    const data = await response.json();
+    const response = await api.login(credentials);
 
     // Save auth data
     await browser.storage.local.set({
-      authToken: data.token,
-      refreshToken: data.refreshToken,
-      user: data.user,
+      authToken: response.token,
+      refreshToken: response.refreshToken,
+      user: response.user,
       lastAuthenticated: Date.now(),
     });
 
-    return { success: true, user: data.user };
+    return { success: true, user: response.user };
   } catch (error) {
     console.error("Login error:", error);
     return { success: false, error: error.message };
@@ -186,13 +157,7 @@ async function handleLogout() {
     if (authToken) {
       // Call logout API
       try {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-        });
+        await api.logout(authToken);
       } catch (error) {
         console.error("Error calling logout API:", error);
       }
@@ -221,7 +186,7 @@ async function extractJobData(tabId) {
     // First ensure the content script is injected
     try {
       await browser.tabs.executeScript(tabId, {
-        file: "content.js",
+        file: "content/content.js",
       });
       // Wait for content script to initialize
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -377,9 +342,41 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         }
       });
     }
+
+    // Update badge for job boards
+    updateBadgeForJobSite(tab);
   }
 });
 
+/**
+ * Update badge for job sites
+ *
+ * @param {browser.tabs.Tab} tab - Tab object
+ */
+function updateBadgeForJobSite(tab) {
+  // Check if the tab is a job board
+  if (isJobBoardUrl(tab.url)) {
+    // Get options to see if badges are enabled
+    browser.storage.sync.get("options").then((data) => {
+      const options = data.options || { showBadge: true };
+
+      if (options.showBadge) {
+        // Update the extension icon to indicate this is a job board
+        updateBadge("JOB", "#552dec");
+      }
+    });
+  } else {
+    // Clear the badge
+    updateBadge("");
+  }
+}
+
+/**
+ * Check if URL is a job board
+ *
+ * @param {string} url - URL to check
+ * @return {boolean} - True if URL is a job board
+ */
 function isJobBoardUrl(url) {
   const jobBoardPatterns = [
     /linkedin\.com\/jobs/i,

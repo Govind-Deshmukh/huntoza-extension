@@ -1,5 +1,5 @@
 /**
- * PursuitPal - Options Script
+ * option.js - Options Page Script
  *
  * Handles loading and saving extension options
  */
@@ -56,4 +56,52 @@ function loadOptions() {
       defaultPrioritySelect.value = defaultOptions.defaultPriority;
       defaultCurrencySelect.value = defaultOptions.defaultCurrency;
     });
+}
+
+// Save options to storage
+function saveOptions(e) {
+  e.preventDefault();
+
+  const options = {
+    autoExtract: autoExtractCheckbox.checked,
+    showBadge: showBadgeCheckbox.checked,
+    defaultPriority: defaultPrioritySelect.value,
+    defaultCurrency: defaultCurrencySelect.value,
+  };
+
+  // Save to browser storage
+  browser.storage.sync
+    .set({ options })
+    .then(() => {
+      // Show success message
+      showStatus("Settings saved successfully!", "success");
+
+      // Hide message after 3 seconds
+      setTimeout(() => {
+        hideStatus();
+      }, 3000);
+    })
+    .catch((error) => {
+      console.error("Error saving options:", error);
+      showStatus("Error saving settings. Please try again.", "error");
+    });
+}
+
+// Show status message
+function showStatus(message, type = "success") {
+  statusMessage.textContent = message;
+  statusMessage.classList.remove("hidden");
+
+  if (type === "success") {
+    statusMessage.classList.add("bg-green-100", "text-green-800");
+    statusMessage.classList.remove("bg-red-100", "text-red-800");
+  } else {
+    statusMessage.classList.add("bg-red-100", "text-red-800");
+    statusMessage.classList.remove("bg-green-100", "text-green-800");
+  }
+}
+
+// Hide status message
+function hideStatus() {
+  statusMessage.classList.add("hidden");
 }

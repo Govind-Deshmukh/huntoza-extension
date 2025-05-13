@@ -1,11 +1,15 @@
 /**
- * PursuitPal - Popup Script
+ * popup.js - Popup UI Script
  *
  * Handles the extension popup UI and user interactions:
  * - User authentication
  * - Job data extraction
  * - Saving data to PursuitPal app
  */
+
+import * as api from "./utils/api.js";
+import { showNotification } from "./utils/notification.js";
+import { extractJobData } from "./extractors/index.js";
 
 // DOM Elements - Views
 const loginView = document.getElementById("loginView");
@@ -274,7 +278,7 @@ async function extractJobData() {
     // First try to inject content script if not already there
     try {
       await browser.tabs.executeScript(tab.id, {
-        file: "content.js",
+        file: "content/content.js",
       });
       // Give content script time to initialize
       await new Promise((resolve) => setTimeout(resolve, 500));

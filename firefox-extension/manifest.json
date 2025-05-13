@@ -21,7 +21,8 @@
     }
   },
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js"],
+    "type": "module"
   },
   "commands": {
     "extract-job": {
@@ -35,9 +36,15 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["content/content.js"],
       "run_at": "document_end"
     }
+  ],
+  "web_accessible_resources": [
+    "extractors/*",
+    "utils/*",
+    "content/*",
+    "images/*"
   ],
   "icons": {
     "16": "images/icon.png",
@@ -45,14 +52,13 @@
     "128": "images/icon.png"
   },
   "options_ui": {
-    "page": "options.html",
+    "page": "option.html",
     "open_in_tab": true
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "pursuitpal@yourdomain.com",
+      "id": "amoldeshmukh683@gmail.com",
       "strict_min_version": "57.0"
     }
-  },
-  "web_accessible_resources": ["images/*"]
+  }
 }
