@@ -21,8 +21,7 @@
     }
   },
   "background": {
-    "scripts": ["background.js"],
-    "type": "module"
+    "scripts": ["background.js"]
   },
   "commands": {
     "extract-job": {
@@ -36,16 +35,11 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/content.js"],
+      "js": ["content_script.js"],
       "run_at": "document_end"
     }
   ],
-  "web_accessible_resources": [
-    "extractors/*",
-    "utils/*",
-    "content/*",
-    "images/*"
-  ],
+  "web_accessible_resources": ["images/*"],
   "icons": {
     "16": "images/icon.png",
     "48": "images/icon.png",

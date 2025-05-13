@@ -1,15 +1,11 @@
 /**
- * popup.js - Popup UI Script
+ * popup.js - Popup UI Script - Converted to Non-Module Version
  *
  * Handles the extension popup UI and user interactions:
  * - User authentication
  * - Job data extraction
  * - Saving data to PursuitPal app
  */
-
-import * as api from "./utils/api.js";
-import { showNotification } from "./utils/notification.js";
-import { extractJobData } from "./extractors/index.js";
 
 // DOM Elements - Views
 const loginView = document.getElementById("loginView");
@@ -275,37 +271,18 @@ async function extractJobData() {
 
     const tab = tabs[0];
 
-    // First try to inject content script if not already there
-    try {
-      await browser.tabs.executeScript(tab.id, {
-        file: "content/content.js",
-      });
-      // Give content script time to initialize
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    } catch (error) {
-      console.log("Content script may already be injected:", error);
-    }
+    // Use the background script to extract job data
+    const response = await sendMessage({ action: "extractJobData" });
 
-    // Now extract the job data
-    const results = await browser.tabs.executeScript(tab.id, {
-      code: `
-        if (typeof window._pursuitPalExtractData === 'function') {
-          window._pursuitPalExtractData();
-        } else {
-          { error: "Extraction function not available" }
-        }
-      `,
-    });
-
-    if (!results || !results[0] || results[0].error) {
+    if (!response || !response.success || !response.data) {
       throw new Error(
-        results && results[0] && results[0].error
-          ? results[0].error
+        response && response.error
+          ? response.error
           : "Failed to extract job data"
       );
     }
 
-    const jobData = results[0];
+    const jobData = response.data;
     console.log("Job data extracted successfully:", jobData);
 
     // Store the extracted data

@@ -1,12 +1,9 @@
 /**
- * background.js - Background Service Worker
+ * background.js - Background Service Worker (Non-Module Version)
  *
  * Handles authentication, data extraction requests, and communication
  * between the extension and the PursuitPal web app.
  */
-
-import * as api from "./utils/api.js";
-import { showBrowserNotification, updateBadge } from "./utils/notification.js";
 
 // Global configuration
 const APP_URL = "https://pursuitpal.app";
@@ -102,7 +99,7 @@ async function checkAuthStatus() {
 
     if (!isValid) {
       // Validate token with backend
-      const stillValid = await api.validateToken(data.authToken);
+      const stillValid = await validateToken(data.authToken);
 
       if (!stillValid) {
         // Token is invalid, clear it
@@ -131,7 +128,7 @@ async function checkAuthStatus() {
 // Handle login
 async function handleLogin(credentials) {
   try {
-    const response = await api.login(credentials);
+    const response = await login(credentials);
 
     // Save auth data
     await browser.storage.local.set({
@@ -157,7 +154,7 @@ async function handleLogout() {
     if (authToken) {
       // Call logout API
       try {
-        await api.logout(authToken);
+        await logout(authToken);
       } catch (error) {
         console.error("Error calling logout API:", error);
       }
@@ -396,4 +393,138 @@ function isJobBoardUrl(url) {
   ];
 
   return jobBoardPatterns.some((pattern) => pattern.test(url));
+}
+
+/**
+ * Update the extension's badge
+ *
+ * @param {string} text - Badge text
+ * @param {string} color - Badge background color
+ */
+function updateBadge(text, color = "#552dec") {
+  if (typeof browser !== "undefined" && browser.browserAction) {
+    // Firefox extension API
+    browser.browserAction.setBadgeText({ text });
+    browser.browserAction.setBadgeBackgroundColor({ color });
+  }
+}
+
+/**
+ * Validate authentication token
+ *
+ * @param {string} token - Authentication token to validate
+ * @return {Promise<boolean>} - Promise resolving to token validity
+ */
+async function validateToken(token) {
+  try {
+    const response = await apiRequest(
+      "/auth/validate",
+      {
+        method: "POST",
+      },
+      token
+    );
+
+    return response.valid === true;
+  } catch (error) {
+    console.error("Error validating token:", error);
+    return false;
+  }
+}
+
+/**
+ * Login to PursuitPal
+ *
+ * @param {Object} credentials - Login credentials
+ * @param {string} credentials.email - User email
+ * @param {string} credentials.password - User password
+ * @return {Promise<Object>} - Promise resolving to login response
+ */
+async function login(credentials) {
+  try {
+    return await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Logout from PursuitPal
+ *
+ * @param {string} [authToken] - Authentication token
+ * @return {Promise<boolean>} - Promise resolving to logout success
+ */
+async function logout(authToken = null) {
+  try {
+    await apiRequest(
+      "/auth/logout",
+      {
+        method: "POST",
+      },
+      authToken
+    );
+    return true;
+  } catch (error) {
+    console.error("Logout error:", error);
+    return false;
+  }
+}
+
+/**
+ * Make an authenticated API request
+ *
+ * @param {string} endpoint - API endpoint (without base URL)
+ * @param {Object} options - Fetch options
+ * @param {string} [authToken] - Authentication token
+ * @return {Promise<Object>} - Promise resolving to API response
+ */
+async function apiRequest(endpoint, options = {}, authToken = null) {
+  try {
+    // Base URL for API requests
+    const API_BASE_URL = "https://api.pursuitpal.app/api/v1";
+
+    // Get auth token from storage if not provided
+    if (!authToken) {
+      const data = await browser.storage.local.get("authToken");
+      authToken = data.authToken;
+    }
+
+    // Prepare fetch options
+    const fetchOptions = {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(options.headers || {}),
+      },
+    };
+
+    // Make request
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+
+    // Parse response
+    const contentType = response.headers.get("content-type");
+    let data;
+
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    // Check for errors
+    if (!response.ok) {
+      const errorMessage = data.message || data.error || response.statusText;
+      throw new Error(errorMessage);
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`API request error (${endpoint}):`, error);
+    throw error;
+  }
 }
