@@ -1,3 +1,4 @@
+// content_script.js
 /**
  * content_script.js - Content Script for PursuitPal
  *
@@ -60,19 +61,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.location.href.includes("pursuitpal.app/jobs/new") ||
     window.location.href.includes("pursuitpal.app/jobs/edit")
   ) {
-    // Tell background script we're on the form page and ready for data
-    setTimeout(() => {
-      browser.runtime.sendMessage({ action: "pageIsJobForm" }).then(
-        (response) => {
-          if (response && response.data) {
-            injectJobData(response.data);
+    // Get jobDataId from URL parameters if available
+    const url = new URL(window.location.href);
+    const jobDataId = url.searchParams.get("jobDataId");
+
+    if (jobDataId) {
+      console.log(`Found job data ID in URL: ${jobDataId}`);
+
+      // Tell background script we're on the form page with specific job data ID
+      setTimeout(() => {
+        browser.runtime
+          .sendMessage({
+            action: "pageIsJobForm",
+            jobDataId: jobDataId,
+          })
+          .then(
+            (response) => {
+              if (response && response.data) {
+                injectJobData(response.data);
+              }
+            },
+            (error) => {
+              console.error("Error sending pageIsJobForm message:", error);
+            }
+          );
+      }, 1000); // Small delay to ensure page is fully loaded
+    } else {
+      // Regular check for any job form data
+      setTimeout(() => {
+        browser.runtime.sendMessage({ action: "pageIsJobForm" }).then(
+          (response) => {
+            if (response && response.data) {
+              injectJobData(response.data);
+            }
+          },
+          (error) => {
+            console.error("Error sending pageIsJobForm message:", error);
           }
-        },
-        (error) => {
-          console.error("Error sending pageIsJobForm message:", error);
-        }
-      );
-    }, 1000); // Small delay to ensure page is fully loaded
+        );
+      }, 1000);
+    }
   }
 
   // Check for job board pages and show notification if auto-extract is enabled
@@ -104,8 +132,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 if (window.location.href.includes("pursuitpal.app/jobs/new")) {
   console.log("PursuitPal job form page detected");
 
-  // Run checks at different times to ensure we catch the data
-  setTimeout(checkForExtensionData, 500);
-  setTimeout(checkForExtensionData, 1000);
-  setTimeout(checkForExtensionData, 2000);
+  // Watch for URL parameter changes (handled by form-handlers.js)
+  const url = new URL(window.location.href);
+  const jobDataId = url.searchParams.get("jobDataId");
+
+  if (jobDataId) {
+    console.log(`Found job data ID in URL: ${jobDataId}`);
+    // Will be handled by pageIsJobForm message
+  } else {
+    // Regular checks for any pending job data
+    setTimeout(checkForExtensionData, 500);
+    setTimeout(checkForExtensionData, 1000);
+    setTimeout(checkForExtensionData, 2000);
+  }
 }

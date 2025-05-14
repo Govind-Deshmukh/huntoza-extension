@@ -1,3 +1,4 @@
+// content/form-handlers.js
 /**
  * content/form-handlers.js - Form handling utilities
  *
@@ -24,6 +25,33 @@ export function injectJobData(data) {
   }
 
   console.log("Attempting to inject job data into PursuitPal form", data);
+
+  // Generate a unique ID for this injection to prevent conflicts
+  const injectionId = `injection_${Date.now()}`;
+
+  // Store the injection ID to detect duplicates
+  const previousInjections =
+    sessionStorage.getItem("pursuitpal_form_injections") || "[]";
+  let injections = JSON.parse(previousInjections);
+
+  // Check if this URL already has an injection
+  const url = new URL(window.location.href);
+  const jobDataId = url.searchParams.get("jobDataId");
+
+  // If there's a jobDataId, check if we've already injected for this ID
+  if (jobDataId) {
+    if (injections.includes(jobDataId)) {
+      console.log(`Already injected data for job data ID: ${jobDataId}`);
+      return false;
+    }
+
+    // Mark this job data ID as injected
+    injections.push(jobDataId);
+    sessionStorage.setItem(
+      "pursuitpal_form_injections",
+      JSON.stringify(injections)
+    );
+  }
 
   // Function to retry injection until the form is ready
   const attemptInjection = (retryCount = 0, maxRetries = 10) => {
@@ -56,6 +84,9 @@ export function injectJobData(data) {
     // Wait a bit more to make sure React has fully initialized
     setTimeout(() => {
       try {
+        // Clear any existing form data first
+        clearFormFields();
+
         // Basic job information
         fillInputField("company", data.company);
         fillInputField("position", data.position);
@@ -88,6 +119,13 @@ export function injectJobData(data) {
         // Notify user that form has been filled
         showNotification("Form auto-filled successfully!");
 
+        // Store in session that this form has been filled
+        const formFills =
+          sessionStorage.getItem("pursuitpal_form_fills") || "[]";
+        let fills = JSON.parse(formFills);
+        fills.push(injectionId);
+        sessionStorage.setItem("pursuitpal_form_fills", JSON.stringify(fills));
+
         return true;
       } catch (error) {
         console.error("Error filling form:", error);
@@ -100,6 +138,30 @@ export function injectJobData(data) {
   // Start the injection process
   attemptInjection();
   return true;
+}
+
+/**
+ * Clear all form fields before injection
+ * This prevents data from previous injections persisting
+ */
+function clearFormFields() {
+  // Find all form input elements
+  const inputFields = document.querySelectorAll(
+    'input:not([type="submit"]), textarea, select'
+  );
+
+  for (const field of inputFields) {
+    if (field.type === "checkbox" || field.type === "radio") {
+      field.checked = false;
+    } else {
+      field.value = "";
+    }
+
+    // Trigger events to notify React
+    triggerInputEvent(field);
+  }
+
+  console.log("Form fields cleared");
 }
 
 /**

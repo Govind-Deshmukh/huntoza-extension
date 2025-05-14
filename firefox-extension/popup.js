@@ -1,8 +1,8 @@
+// popup.js
 /**
- * popup.js - Popup UI Script - Converted to Non-Module Version
+ * popup.js - Popup UI Script
  *
  * Handles the extension popup UI and user interactions:
- * - User authentication
  * - Job data extraction
  * - Saving data to PursuitPal app
  */
@@ -10,19 +10,11 @@
 // DOM Elements - Views
 const loginView = document.getElementById("loginView");
 const mainView = document.getElementById("mainView");
-
-// DOM Elements - Login
-const loginForm = document.getElementById("loginForm");
-const loginButton = document.getElementById("loginButton");
-const loginLoading = document.getElementById("loginLoading");
-const loginError = document.getElementById("loginError");
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
+const authRequiredView = document.getElementById("authRequiredView");
 
 // DOM Elements - Main View
 const userProfileToggle = document.getElementById("userProfileToggle");
 const userInitials = document.getElementById("userInitials");
-const logoutButton = document.getElementById("logoutButton");
 
 // DOM Elements - Extraction Section
 const extractionSection = document.getElementById("extractionSection");
@@ -32,6 +24,7 @@ const errorView = document.getElementById("errorView");
 const jobDataView = document.getElementById("jobDataView");
 const errorMessage = document.getElementById("errorMessage");
 const retryButton = document.getElementById("retryButton");
+const openLoginButton = document.getElementById("openLoginButton");
 
 // DOM Elements - Job Data
 const jobTitle = document.getElementById("jobTitle");
@@ -59,32 +52,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   // If authenticated, check if current page is a job posting
   if (currentUser) {
     await checkCurrentPage();
+  } else {
+    // Show auth required view
+    showAuthRequiredView();
   }
 });
 
 // Set up event listeners
 function setupEventListeners() {
-  // Login form submission
-  loginForm.addEventListener("submit", handleLogin);
-
-  // Logout button
-  logoutButton.addEventListener("click", handleLogout);
+  // Open Login button
+  if (openLoginButton) {
+    openLoginButton.addEventListener("click", handleOpenLogin);
+  }
 
   // Retry button
-  retryButton.addEventListener("click", handleRetry);
+  if (retryButton) {
+    retryButton.addEventListener("click", handleRetry);
+  }
 
   // Refresh job data button
-  refreshJobButton.addEventListener("click", handleRefreshJobData);
+  if (refreshJobButton) {
+    refreshJobButton.addEventListener("click", handleRefreshJobData);
+  }
 
   // Save job button
-  saveJobButton.addEventListener("click", handleSaveJob);
+  if (saveJobButton) {
+    saveJobButton.addEventListener("click", handleSaveJob);
+  }
 }
 
 // Check authentication status
 async function checkAuth() {
-  // Show loading state
-  setLoginLoading(true);
-
   try {
     // Check auth status with background script
     const response = await sendMessage({ action: "checkAuth" });
@@ -93,85 +91,25 @@ async function checkAuth() {
       // User is authenticated
       currentUser = response.user;
       showAuthenticatedUI(response.user);
+      return true;
     } else {
       // User is not authenticated
-      showLoginUI();
+      showAuthRequiredView();
+      return false;
     }
   } catch (error) {
     console.error("Auth check error:", error);
-    showLoginUI();
+    showAuthRequiredView();
+    return false;
   }
 }
 
-// Handle login form submission
-async function handleLogin(e) {
-  e.preventDefault();
-
-  // Reset error message
-  setLoginError();
-
-  // Show loading state
-  setLoginLoading(true);
-
-  // Get credentials
-  const credentials = {
-    email: emailInput.value.trim(),
-    password: passwordInput.value,
-  };
-
-  // Validate input
-  if (!credentials.email || !credentials.password) {
-    setLoginError("Please enter both email and password");
-    setLoginLoading(false);
-    return;
-  }
-
-  try {
-    // Send login request to background script
-    const response = await sendMessage({
-      action: "login",
-      credentials: credentials,
-    });
-
-    console.log("Login response:", response);
-
-    if (response && response.success && response.user) {
-      // Login successful
-      currentUser = response.user;
-      showAuthenticatedUI(response.user);
-
-      // Check if current page is a job posting
-      await checkCurrentPage();
-    } else {
-      // Login failed
-      setLoginError(
-        (response && response.error) ||
-          "Login failed. Please check your credentials."
-      );
-      setLoginLoading(false);
-    }
-  } catch (error) {
-    console.error("Login error:", error);
-    setLoginError("An error occurred. Please try again.");
-    setLoginLoading(false);
-  }
-}
-
-// Handle logout button click
-async function handleLogout() {
-  try {
-    // Send logout request to background script
-    await sendMessage({ action: "logout" });
-
-    // Reset state
-    currentUser = null;
-    currentJobData = null;
-
-    // Show login UI
-    showLoginUI();
-  } catch (error) {
-    console.error("Logout error:", error);
-  }
+// Handle open login button click
+function handleOpenLogin() {
+  browser.tabs.create({
+    url: "https://pursuitpal.app/login?extension=true",
+  });
+  window.close();
 }
 
 // Handle retry button click
@@ -259,19 +197,7 @@ async function extractJobData() {
   try {
     console.log("Sending extractJobData message from popup");
 
-    // Get current tab info
-    const tabs = await browser.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
-    if (!tabs || tabs.length === 0) {
-      throw new Error("No active tab found");
-    }
-
-    const tab = tabs[0];
-
-    // Use the background script to extract job data
+    // Send extract request to background script
     const response = await sendMessage({ action: "extractJobData" });
 
     if (!response || !response.success || !response.data) {
@@ -327,6 +253,50 @@ function updateJobDataView(data) {
   jobSalary.textContent = formatSalary(data.salary) || "Not specified";
 }
 
+// Show authenticated UI
+function showAuthenticatedUI(user) {
+  // Hide all views
+  loginView.classList.add("hidden");
+  authRequiredView.classList.add("hidden");
+
+  // Show main view
+  mainView.classList.remove("hidden");
+
+  // Update user profile
+  userProfileToggle.classList.remove("hidden");
+
+  // Set user initials (handle email or name)
+  const initials = getInitials(user.name || user.email || "User");
+  userInitials.textContent = initials;
+}
+
+// Show auth required view
+function showAuthRequiredView() {
+  // Hide all views
+  loginView.classList.add("hidden");
+  mainView.classList.add("hidden");
+
+  // Show auth required view
+  authRequiredView.classList.remove("hidden");
+}
+
+// Show specific view in extraction section
+function showView(viewId) {
+  // Hide all views
+  notJobPageView.classList.add("hidden");
+  loadingView.classList.add("hidden");
+  errorView.classList.add("hidden");
+  jobDataView.classList.add("hidden");
+
+  // Show requested view
+  document.getElementById(viewId).classList.remove("hidden");
+}
+
+// Set error message
+function setErrorMessage(message = "") {
+  errorMessage.textContent = message;
+}
+
 // Helper: Format job type for display
 function formatJobType(type) {
   if (!type) return "Not specified";
@@ -377,78 +347,6 @@ function getCurrencySymbol(currency) {
     default:
       return "$";
   }
-}
-
-// Show authenticated UI
-function showAuthenticatedUI(user) {
-  // Hide login view
-  loginView.classList.add("hidden");
-
-  // Show main view
-  mainView.classList.remove("hidden");
-
-  // Update user profile
-  userProfileToggle.classList.remove("hidden");
-
-  // Set user initials (handle email or name)
-  const initials = getInitials(user.name || user.email || "User");
-  userInitials.textContent = initials;
-}
-
-// Show login UI
-function showLoginUI() {
-  // Hide main view
-  mainView.classList.add("hidden");
-
-  // Show login view
-  loginView.classList.remove("hidden");
-
-  // Reset login form
-  loginForm.reset();
-
-  // Hide loading state
-  setLoginLoading(false);
-}
-
-// Show specific view in extraction section
-function showView(viewId) {
-  // Hide all views
-  notJobPageView.classList.add("hidden");
-  loadingView.classList.add("hidden");
-  errorView.classList.add("hidden");
-  jobDataView.classList.add("hidden");
-
-  // Show requested view
-  document.getElementById(viewId).classList.remove("hidden");
-}
-
-// Set login loading state
-function setLoginLoading(isLoading) {
-  if (isLoading) {
-    loginButton.classList.add("opacity-75");
-    loginButton.disabled = true;
-    loginLoading.classList.remove("hidden");
-  } else {
-    loginButton.classList.remove("opacity-75");
-    loginButton.disabled = false;
-    loginLoading.classList.add("hidden");
-  }
-}
-
-// Set login error message
-function setLoginError(message = "") {
-  if (message) {
-    loginError.textContent = message;
-    loginError.classList.remove("hidden");
-  } else {
-    loginError.textContent = "";
-    loginError.classList.add("hidden");
-  }
-}
-
-// Set error message
-function setErrorMessage(message = "") {
-  errorMessage.textContent = message;
 }
 
 // Helper: Get user initials from name or email

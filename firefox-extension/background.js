@@ -1,15 +1,16 @@
+// background.js
 /**
  * background.js - Background Service Worker
  *
- * Handles authentication, data extraction requests, and communication
- * between the extension and the PursuitPal web app.
+ * Handles communication between the extension and the PursuitPal web app.
  */
 
-import { validateToken, login, logout, apiRequest } from "./utils/api.js";
-import { showNotification, updateBadge } from "./utils/notification.js";
+import { isJobBoardUrl } from "./utils/url-utils.js";
+import { updateBadge } from "./utils/notification.js";
 
 // Global configuration
 const APP_URL = "https://pursuitpal.app";
+const API_URL = "https://api.pursuitpal.app/api/v1";
 
 // Initialize extension
 browser.runtime.onInstalled.addListener(() => {
@@ -37,13 +38,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
 
   switch (message.action) {
     case "checkAuth":
-      return checkAuthStatus();
-
-    case "login":
-      return handleLogin(message.credentials);
-
-    case "logout":
-      return handleLogout();
+      return checkPursuitPalAuth();
 
     case "extractJobData":
       let tabId;
@@ -83,98 +78,27 @@ browser.runtime.onMessage.addListener((message, sender) => {
   return Promise.resolve({ success: false, error: "Unknown action" });
 });
 
-// Check extension authentication status
-async function checkAuthStatus() {
+// Check PursuitPal authentication by querying its API
+async function checkPursuitPalAuth() {
   try {
-    const data = await browser.storage.local.get([
-      "authToken",
-      "lastAuthenticated",
-      "user",
-    ]);
+    // Create a tab to check auth status
+    const authCheckResponse = await fetch(
+      `${API_URL}/auth/check-extension-auth`,
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
 
-    if (!data.authToken) {
+    if (authCheckResponse.ok) {
+      const userData = await authCheckResponse.json();
+      return { isAuthenticated: true, user: userData.user };
+    } else {
       return { isAuthenticated: false };
     }
-
-    // Check if token is still valid (less than 24 hours old or validate with backend)
-    const tokenAge = Date.now() - (data.lastAuthenticated || 0);
-    const isValid = tokenAge < 24 * 60 * 60 * 1000; // 24 hours
-
-    if (!isValid) {
-      // Validate token with backend
-      const stillValid = await validateToken(data.authToken);
-
-      if (!stillValid) {
-        // Token is invalid, clear it
-        await browser.storage.local.remove([
-          "authToken",
-          "lastAuthenticated",
-          "user",
-        ]);
-        return { isAuthenticated: false };
-      }
-
-      // Update last authenticated time
-      await browser.storage.local.set({ lastAuthenticated: Date.now() });
-    }
-
-    return {
-      isAuthenticated: true,
-      user: data.user,
-    };
   } catch (error) {
-    console.error("Error checking auth status:", error);
+    console.error("Error checking PursuitPal auth:", error);
     return { isAuthenticated: false, error: error.message };
-  }
-}
-
-// Handle login
-async function handleLogin(credentials) {
-  try {
-    const response = await login(credentials);
-
-    // Save auth data
-    await browser.storage.local.set({
-      authToken: response.token,
-      refreshToken: response.refreshToken,
-      user: response.user,
-      lastAuthenticated: Date.now(),
-    });
-
-    return { success: true, user: response.user };
-  } catch (error) {
-    console.error("Login error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Handle logout
-async function handleLogout() {
-  try {
-    const data = await browser.storage.local.get(["authToken"]);
-    const authToken = data.authToken;
-
-    if (authToken) {
-      // Call logout API
-      try {
-        await logout(authToken);
-      } catch (error) {
-        console.error("Error calling logout API:", error);
-      }
-    }
-
-    // Clear stored data regardless of API call success
-    await browser.storage.local.remove([
-      "authToken",
-      "refreshToken",
-      "user",
-      "lastAuthenticated",
-    ]);
-
-    return { success: true };
-  } catch (error) {
-    console.error("Logout error:", error);
-    return { success: false, error: error.message };
   }
 }
 
@@ -240,23 +164,30 @@ async function saveJobData(data) {
 
 async function sendDataToApp(data) {
   try {
-    const storedData = await browser.storage.local.get(["authToken"]);
-    const authToken = storedData.authToken;
+    // Check if user is authenticated with PursuitPal
+    const authStatus = await checkPursuitPalAuth();
 
-    if (!authToken) {
-      return { success: false, error: "Not authenticated" };
+    if (!authStatus.isAuthenticated) {
+      // Open PursuitPal login page
+      await browser.tabs.create({
+        url: `${APP_URL}/login?redirect=jobs/new&extension=true`,
+      });
+      return { success: false, error: "Please log in to PursuitPal first" };
     }
+
+    // Generate a unique ID for this job data
+    const jobId = Date.now().toString();
 
     // Store the job data in localStorage for the web app to access
     await browser.storage.local.set({
-      pendingJobData: JSON.stringify(data),
+      [`pendingJobData_${jobId}`]: JSON.stringify(data),
     });
 
-    console.log("Stored pendingJobData for web app:", data);
+    console.log(`Stored pendingJobData_${jobId} for web app:`, data);
 
     // Open the job form page
     await browser.tabs.create({
-      url: `${APP_URL}/jobs/new`,
+      url: `${APP_URL}/jobs/new?jobDataId=${jobId}`,
     });
 
     return { success: true, message: "Form opened with data" };
@@ -269,39 +200,53 @@ async function sendDataToApp(data) {
 // Handle a page that's ready to receive job form data
 async function handleJobFormPage(tabId) {
   try {
-    // Get the stored job data
-    const data = await browser.storage.local.get([
-      "lastCreatedJobData",
-      "currentJobData",
-      "pendingJobData",
-    ]);
+    // Get URL parameters to find the correct job data ID
+    const tab = await browser.tabs.get(tabId);
+    const url = new URL(tab.url);
+    const jobDataId = url.searchParams.get("jobDataId");
 
-    // Try to get data from pendingJobData first, then fall back to other sources
-    let jobData;
+    // If no jobDataId parameter, check for any recent job data
+    if (!jobDataId) {
+      const data = await browser.storage.local.get(["currentJobData"]);
 
-    if (data.pendingJobData) {
-      try {
-        jobData = JSON.parse(data.pendingJobData);
-      } catch (e) {
-        console.error("Error parsing pendingJobData:", e);
+      if (!data.currentJobData) {
+        return { success: false, error: "No job data found" };
       }
+
+      // Send the data to the content script
+      await browser.tabs.sendMessage(tabId, {
+        action: "fillJobForm",
+        data: data.currentJobData,
+      });
+
+      return { success: true, data: data.currentJobData };
     }
 
-    if (!jobData) {
-      jobData = data.lastCreatedJobData || data.currentJobData;
+    // Look for specific job data with the given ID
+    const key = `pendingJobData_${jobDataId}`;
+    const data = await browser.storage.local.get([key]);
+
+    if (!data[key]) {
+      return { success: false, error: "No job data found with ID" };
     }
 
-    if (!jobData) {
-      return { success: false, error: "No job data found" };
+    try {
+      const jobData = JSON.parse(data[key]);
+
+      // Send the data to the content script
+      await browser.tabs.sendMessage(tabId, {
+        action: "fillJobForm",
+        data: jobData,
+      });
+
+      // Clean up after use - remove this specific job data
+      await browser.storage.local.remove([key]);
+
+      return { success: true };
+    } catch (e) {
+      console.error("Error parsing job data:", e);
+      return { success: false, error: "Invalid job data format" };
     }
-
-    // Send the data to the content script to fill the form
-    await browser.tabs.sendMessage(tabId, {
-      action: "fillJobForm",
-      data: jobData,
-    });
-
-    return { success: true, data: jobData };
   } catch (error) {
     console.error("Error handling job form page:", error);
     return { success: false, error: error.message };
@@ -311,52 +256,64 @@ async function handleJobFormPage(tabId) {
 // Listen for tab updates
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
-    // If we're on the PursuitPal new job form page, inject the pending job data
-    if (tab.url.includes(`pursuitpal.app/jobs/new`)) {
+    // If we're on the PursuitPal new job form page, check for job data ID
+    if (tab.url.includes(`${APP_URL}/jobs/new`)) {
       console.log("Detected job creation page");
 
-      // Get stored job data
-      browser.storage.local.get(["pendingJobData"]).then((data) => {
-        if (data.pendingJobData) {
-          console.log("Found pending job data to inject:", data.pendingJobData);
+      try {
+        const url = new URL(tab.url);
+        const jobDataId = url.searchParams.get("jobDataId");
+
+        if (jobDataId) {
+          console.log(`Found job data ID: ${jobDataId}`);
 
           // Wait a moment for the page to initialize
           setTimeout(() => {
-            // Inject the data into localStorage
-            browser.tabs
-              .executeScript(tabId, {
-                code: `
-                try {
-                  localStorage.setItem('pendingJobData', '${data.pendingJobData.replace(
-                    /'/g,
-                    "\\'"
-                  )}');
-                  console.log("Successfully injected job data to localStorage");
-                  
-                  // Notify the app that data is available
-                  window.dispatchEvent(new CustomEvent('jobDataAvailable', {
-                    detail: { source: 'firefoxExtension' }
-                  }));
-                  
-                  true;
-                } catch (e) {
-                  console.error("Failed to inject job data:", e);
-                  false;
+            // Get the specific job data
+            browser.storage.local
+              .get([`pendingJobData_${jobDataId}`])
+              .then((data) => {
+                const key = `pendingJobData_${jobDataId}`;
+
+                if (data[key]) {
+                  // Inject the data into localStorage
+                  browser.tabs
+                    .executeScript(tabId, {
+                      code: `
+                    try {
+                      localStorage.setItem('pendingJobData', '${data[
+                        key
+                      ].replace(/'/g, "\\'")}');
+                      console.log("Successfully injected job data to localStorage");
+                      
+                      // Notify the app that data is available
+                      window.dispatchEvent(new CustomEvent('jobDataAvailable', {
+                        detail: { source: 'firefoxExtension' }
+                      }));
+                      
+                      true;
+                    } catch (e) {
+                      console.error("Failed to inject job data:", e);
+                      false;
+                    }
+                  `,
+                    })
+                    .then((result) => {
+                      if (result && result[0]) {
+                        // Remove from extension storage after use
+                        browser.storage.local.remove([key]);
+                      }
+                    })
+                    .catch((err) => {
+                      console.error("Error injecting data:", err);
+                    });
                 }
-              `,
-              })
-              .then((result) => {
-                if (result && result[0]) {
-                  // Remove from extension storage to prevent duplicates
-                  browser.storage.local.remove(["pendingJobData"]);
-                }
-              })
-              .catch((err) => {
-                console.error("Error injecting data:", err);
               });
           }, 1000);
         }
-      });
+      } catch (e) {
+        console.error("Error processing URL parameters:", e);
+      }
     }
 
     // Update badge for job boards
@@ -385,31 +342,4 @@ function updateBadgeForJobSite(tab) {
     // Clear the badge
     updateBadge("");
   }
-}
-
-/**
- * Check if URL is a job board
- *
- * @param {string} url - URL to check
- * @return {boolean} - True if URL is a job board
- */
-function isJobBoardUrl(url) {
-  const jobBoardPatterns = [
-    /linkedin\.com\/jobs/i,
-    /indeed\.com\/viewjob/i,
-    /glassdoor\.com\/job/i,
-    /monster\.com\/job/i,
-    /naukri\.com\/job-listings/i,
-    /naukri\.com\/.+-jobs/i,
-    /ziprecruiter\.com\/jobs/i,
-    /lever\.co\/[^\/]+\/jobs/i,
-    /greenhouse\.io\/jobs/i,
-    /careers\./i,
-    /jobs\./i,
-    /\/jobs?\//i,
-    /\/careers?\//i,
-    /\/job\-details/i,
-  ];
-
-  return jobBoardPatterns.some((pattern) => pattern.test(url));
 }
