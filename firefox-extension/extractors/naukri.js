@@ -84,43 +84,45 @@ export function extractNaukriJob() {
     }
 
     // Job Type
-    const employmentTypeElement = document.querySelector(
-      '.styles_details__Y424J:has(label:contains("Employment Type")) span, .job-type'
-    );
-    if (employmentTypeElement) {
-      const jobTypeText = employmentTypeElement.textContent
-        .toLowerCase()
-        .trim();
+    // Since Naukri doesn't directly expose employment type in a uniform way, we'll check several places
 
-      if (jobTypeText.includes("full time")) {
+    // Try to find the employment type in the job description
+    if (jobData.jobDescription) {
+      if (/full[- ]time|permanent/i.test(jobData.jobDescription)) {
         jobData.jobType = "full-time";
-      } else if (jobTypeText.includes("part time")) {
+      } else if (/part[- ]time/i.test(jobData.jobDescription)) {
         jobData.jobType = "part-time";
-      } else if (jobTypeText.includes("contract")) {
+      } else if (/contract|temporary/i.test(jobData.jobDescription)) {
         jobData.jobType = "contract";
-      } else if (jobTypeText.includes("internship")) {
+      } else if (/internship|intern/i.test(jobData.jobDescription)) {
         jobData.jobType = "internship";
+      } else if (/remote|work from home|wfh/i.test(jobData.jobDescription)) {
+        jobData.jobType = "remote";
       }
     }
 
-    // If job type not found, look in the employment type section
-    if (!jobData.jobType) {
-      const employmentTypes = document.querySelectorAll(
-        ".styles_other-details__oEN4O .styles_details__Y424J, .employment-type"
-      );
-      for (const element of employmentTypes) {
-        const label = element.querySelector("label");
-        if (label && label.textContent.includes("Employment Type")) {
-          const typeText = element
-            .querySelector("span")
-            .textContent.toLowerCase()
-            .trim();
+    // Try to find job type in other sections
+    const detailSections = document.querySelectorAll(
+      ".styles_details__Y424J, .detail-box"
+    );
+    for (const section of detailSections) {
+      const label = section.querySelector("label");
+      if (label && label.textContent.includes("Employment Type")) {
+        const valueElement = section.querySelector("span");
+        if (valueElement) {
+          const typeText = valueElement.textContent.toLowerCase().trim();
 
-          if (typeText.includes("full time")) {
+          if (
+            typeText.includes("full time") ||
+            typeText.includes("permanent")
+          ) {
             jobData.jobType = "full-time";
           } else if (typeText.includes("part time")) {
             jobData.jobType = "part-time";
-          } else if (typeText.includes("contract")) {
+          } else if (
+            typeText.includes("contract") ||
+            typeText.includes("temporary")
+          ) {
             jobData.jobType = "contract";
           } else if (typeText.includes("internship")) {
             jobData.jobType = "internship";
@@ -176,52 +178,7 @@ export function extractNaukriJob() {
       jobData.notes = "Role Category: " + jobData.roleCategory;
     }
 
-    // Industry Type
-    const industryElement = document.querySelector(
-      'label:contains("Industry Type"), .industry-type'
-    );
-    if (industryElement) {
-      const industryParent = industryElement.closest(
-        ".styles_details__Y424J, .detail-box"
-      );
-      if (industryParent) {
-        const industryValue = industryParent.querySelector("span");
-        if (industryValue) {
-          jobData.industryType = industryValue.textContent.trim();
-
-          // Add to notes
-          if (jobData.notes) {
-            jobData.notes += "\nIndustry Type: " + jobData.industryType;
-          } else {
-            jobData.notes = "Industry Type: " + jobData.industryType;
-          }
-        }
-      }
-    }
-
-    // Functional Area
-    const functionalElement = document.querySelector(
-      'label:contains("Functional Area"), .functional-area'
-    );
-    if (functionalElement) {
-      const functionalParent = functionalElement.closest(
-        ".styles_details__Y424J, .detail-box"
-      );
-      if (functionalParent) {
-        const functionalValue = functionalParent.querySelector("span");
-        if (functionalValue) {
-          jobData.functionalArea = functionalValue.textContent.trim();
-
-          // Add to notes
-          if (jobData.notes) {
-            jobData.notes += "\nFunctional Area: " + jobData.functionalArea;
-          } else {
-            jobData.notes = "Functional Area: " + jobData.functionalArea;
-          }
-        }
-      }
-    }
-
+    console.log("Extracted Naukri job data:", jobData);
     return jobData;
   } catch (error) {
     console.error("Error extracting Naukri job data:", error);

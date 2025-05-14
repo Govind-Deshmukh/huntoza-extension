@@ -39,7 +39,7 @@ export function checkForExtensionData() {
       // Notify application
       window.dispatchEvent(
         new CustomEvent("jobDataAvailable", {
-          detail: { source: "chromeExtension" },
+          detail: { source: "firefoxExtension" },
         })
       );
 

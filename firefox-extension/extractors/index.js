@@ -21,7 +21,7 @@ import { extractGenericJob } from "./generic.js";
 export function detectJobPlatform(url) {
   if (!url) return "generic";
 
-  if (url.includes("linkedin.com")) {
+  if (url.includes("linkedin.com/jobs") || url.includes("linkedin.com/job/")) {
     return "linkedin";
   } else if (url.includes("indeed.com")) {
     return "indeed";
@@ -131,3 +131,12 @@ export function extractJobData() {
     };
   }
 }
+
+// Export all extractors
+export {
+  extractLinkedInJob,
+  extractIndeedJob,
+  extractGlassdoorJob,
+  extractNaukriJob,
+  extractGenericJob,
+};
