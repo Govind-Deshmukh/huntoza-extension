@@ -6,6 +6,7 @@
  */
 
 import { showNotification } from "../utils/notification.js";
+import { clearLocalJobData, clearSessionData } from "./storage.js";
 
 /**
  * Inject job data into the PursuitPal form
@@ -28,30 +29,6 @@ export function injectJobData(data) {
 
   // Generate a unique ID for this injection to prevent conflicts
   const injectionId = `injection_${Date.now()}`;
-
-  // Store the injection ID to detect duplicates
-  const previousInjections =
-    sessionStorage.getItem("pursuitpal_form_injections") || "[]";
-  let injections = JSON.parse(previousInjections);
-
-  // Check if this URL already has an injection
-  const url = new URL(window.location.href);
-  const jobDataId = url.searchParams.get("jobDataId");
-
-  // If there's a jobDataId, check if we've already injected for this ID
-  if (jobDataId) {
-    if (injections.includes(jobDataId)) {
-      console.log(`Already injected data for job data ID: ${jobDataId}`);
-      return false;
-    }
-
-    // Mark this job data ID as injected
-    injections.push(jobDataId);
-    sessionStorage.setItem(
-      "pursuitpal_form_injections",
-      JSON.stringify(injections)
-    );
-  }
 
   // Function to retry injection until the form is ready
   const attemptInjection = (retryCount = 0, maxRetries = 10) => {
@@ -84,8 +61,14 @@ export function injectJobData(data) {
     // Wait a bit more to make sure React has fully initialized
     setTimeout(() => {
       try {
-        // Clear any existing form data first
+        // CRITICAL: Clear any existing form data first
         clearFormFields();
+
+        // Clear local storage data from previous injections
+        clearLocalJobData();
+
+        // Clear session data related to injections
+        clearSessionData();
 
         // Basic job information
         fillInputField("company", data.company);
@@ -118,13 +101,6 @@ export function injectJobData(data) {
 
         // Notify user that form has been filled
         showNotification("Form auto-filled successfully!");
-
-        // Store in session that this form has been filled
-        const formFills =
-          sessionStorage.getItem("pursuitpal_form_fills") || "[]";
-        let fills = JSON.parse(formFills);
-        fills.push(injectionId);
-        sessionStorage.setItem("pursuitpal_form_fills", JSON.stringify(fills));
 
         return true;
       } catch (error) {

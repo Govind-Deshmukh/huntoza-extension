@@ -7,8 +7,11 @@
  * - Saving data to PursuitPal app
  */
 
+import { openPursuitPalLogin } from "./utils/auth.js";
+import { formatJobType, formatSalary, getInitials } from "./utils/format.js";
+import { isJobBoardUrl } from "./utils/url-utils.js";
+
 // DOM Elements - Views
-const loginView = document.getElementById("loginView");
 const mainView = document.getElementById("mainView");
 const authRequiredView = document.getElementById("authRequiredView");
 
@@ -32,6 +35,7 @@ const companyName = document.getElementById("companyName");
 const jobLocation = document.getElementById("jobLocation");
 const jobType = document.getElementById("jobType");
 const jobSalary = document.getElementById("jobSalary");
+// popup.js (continued)
 const saveJobButton = document.getElementById("saveJobButton");
 const refreshJobButton = document.getElementById("refreshJobButton");
 
@@ -106,6 +110,7 @@ async function checkAuth() {
 
 // Handle open login button click
 function handleOpenLogin() {
+  // Open PursuitPal login page and close popup
   browser.tabs.create({
     url: "https://pursuitpal.app/login?extension=true",
   });
@@ -173,7 +178,7 @@ async function checkCurrentPage() {
     const tab = tabs[0];
 
     // Check if URL is a job board
-    if (isJobPostingURL(tab.url)) {
+    if (isJobBoardUrl(tab.url)) {
       // Extract job data
       await extractJobData();
     } else {
@@ -199,6 +204,16 @@ async function extractJobData() {
 
     // Send extract request to background script
     const response = await sendMessage({ action: "extractJobData" });
+
+    if (
+      response &&
+      response.error &&
+      response.error.includes("Authentication required")
+    ) {
+      // Authentication issue
+      showAuthRequiredView();
+      return;
+    }
 
     if (!response || !response.success || !response.data) {
       throw new Error(
@@ -255,8 +270,7 @@ function updateJobDataView(data) {
 
 // Show authenticated UI
 function showAuthenticatedUI(user) {
-  // Hide all views
-  loginView.classList.add("hidden");
+  // Hide auth required view
   authRequiredView.classList.add("hidden");
 
   // Show main view
@@ -272,8 +286,7 @@ function showAuthenticatedUI(user) {
 
 // Show auth required view
 function showAuthRequiredView() {
-  // Hide all views
-  loginView.classList.add("hidden");
+  // Hide main view
   mainView.classList.add("hidden");
 
   // Show auth required view
@@ -295,99 +308,6 @@ function showView(viewId) {
 // Set error message
 function setErrorMessage(message = "") {
   errorMessage.textContent = message;
-}
-
-// Helper: Format job type for display
-function formatJobType(type) {
-  if (!type) return "Not specified";
-
-  // Replace hyphens with spaces and capitalize words
-  return type.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-// Helper: Format salary for display
-function formatSalary(salary) {
-  if (!salary || (!salary.min && !salary.max)) {
-    return "Not specified";
-  }
-
-  const currency = getCurrencySymbol(salary.currency);
-
-  if (salary.min > 0 && salary.max > 0) {
-    return `${currency}${formatNumber(salary.min)} - ${currency}${formatNumber(
-      salary.max
-    )}`;
-  } else if (salary.min > 0) {
-    return `${currency}${formatNumber(salary.min)}+`;
-  } else if (salary.max > 0) {
-    return `Up to ${currency}${formatNumber(salary.max)}`;
-  }
-
-  return "Not specified";
-}
-
-// Helper: Format number with commas
-function formatNumber(num) {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-// Helper: Get currency symbol
-function getCurrencySymbol(currency) {
-  switch (currency) {
-    case "USD":
-      return "$";
-    case "INR":
-      return "₹";
-    case "EUR":
-      return "€";
-    case "GBP":
-      return "£";
-    case "JPY":
-      return "¥";
-    default:
-      return "$";
-  }
-}
-
-// Helper: Get user initials from name or email
-function getInitials(str) {
-  if (!str) return "--";
-
-  // If email, use first character
-  if (str.includes("@")) {
-    return str.charAt(0).toUpperCase();
-  }
-
-  // If name, use first character of first and last name
-  const parts = str.split(" ");
-  if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase();
-  }
-
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
-
-// Check if URL is a job posting
-function isJobPostingURL(url) {
-  if (!url) return false;
-
-  const jobPostingPatterns = [
-    /linkedin\.com\/jobs/i,
-    /indeed\.com\/viewjob/i,
-    /glassdoor\.com\/job/i,
-    /monster\.com\/job/i,
-    /naukri\.com/i,
-    /ziprecruiter\.com\/jobs/i,
-    /careers\./i,
-    /jobs\./i,
-    /\/jobs?\//i,
-    /\/careers?\//i,
-    /\/job\-details/i,
-    /lever\.co\/[^\/]+\/jobs/i,
-    /greenhouse\.io\/jobs/i,
-  ];
-
-  return jobPostingPatterns.some((pattern) => pattern.test(url));
 }
 
 // Send message to background script

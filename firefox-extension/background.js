@@ -7,6 +7,7 @@
 
 import { isJobBoardUrl } from "./utils/url-utils.js";
 import { updateBadge } from "./utils/notification.js";
+import { checkPursuitPalAuth } from "./utils/auth.js";
 
 // Global configuration
 const APP_URL = "https://pursuitpal.app";
@@ -70,7 +71,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
 
     case "pageIsJobForm":
       if (sender.tab) {
-        return handleJobFormPage(sender.tab.id);
+        return handleJobFormPage(sender.tab.id, message.jobDataId);
       }
       return Promise.resolve({ success: false, error: "No tab info provided" });
   }
@@ -78,33 +79,20 @@ browser.runtime.onMessage.addListener((message, sender) => {
   return Promise.resolve({ success: false, error: "Unknown action" });
 });
 
-// Check PursuitPal authentication by querying its API
-async function checkPursuitPalAuth() {
-  try {
-    // Create a tab to check auth status
-    const authCheckResponse = await fetch(
-      `${API_URL}/auth/check-extension-auth`,
-      {
-        method: "GET",
-        credentials: "include",
-      }
-    );
-
-    if (authCheckResponse.ok) {
-      const userData = await authCheckResponse.json();
-      return { isAuthenticated: true, user: userData.user };
-    } else {
-      return { isAuthenticated: false };
-    }
-  } catch (error) {
-    console.error("Error checking PursuitPal auth:", error);
-    return { isAuthenticated: false, error: error.message };
-  }
-}
-
 // Extract job data from active tab
 async function extractJobData(tabId) {
   try {
+    // First check if user is logged in
+    const authStatus = await checkPursuitPalAuth();
+    if (!authStatus.isAuthenticated) {
+      // User is not logged in, return error
+      return {
+        success: false,
+        error:
+          "Authentication required. Please log in to PursuitPal web app first.",
+      };
+    }
+
     console.log("Extracting data from tab:", tabId);
 
     // First ensure the content script is injected
@@ -148,6 +136,9 @@ async function extractJobData(tabId) {
 // Save job data to local storage
 async function saveJobData(data) {
   try {
+    // Clear previous job data first
+    await browser.storage.local.remove(["currentJobData"]);
+
     // Add timestamp
     const jobData = {
       ...data,
@@ -177,15 +168,16 @@ async function sendDataToApp(data) {
 
     // Generate a unique ID for this job data
     const jobId = Date.now().toString();
+    const storageKey = `pendingJobData_${jobId}`;
 
-    // Store the job data in localStorage for the web app to access
+    // Store the job data with the unique ID
     await browser.storage.local.set({
-      [`pendingJobData_${jobId}`]: JSON.stringify(data),
+      [storageKey]: JSON.stringify(data),
     });
 
-    console.log(`Stored pendingJobData_${jobId} for web app:`, data);
+    console.log(`Stored ${storageKey} for web app:`, data);
 
-    // Open the job form page
+    // Open the job form page with the jobDataId parameter
     await browser.tabs.create({
       url: `${APP_URL}/jobs/new?jobDataId=${jobId}`,
     });
@@ -198,12 +190,14 @@ async function sendDataToApp(data) {
 }
 
 // Handle a page that's ready to receive job form data
-async function handleJobFormPage(tabId) {
+async function handleJobFormPage(tabId, jobDataId) {
   try {
     // Get URL parameters to find the correct job data ID
-    const tab = await browser.tabs.get(tabId);
-    const url = new URL(tab.url);
-    const jobDataId = url.searchParams.get("jobDataId");
+    if (!jobDataId) {
+      const tab = await browser.tabs.get(tabId);
+      const url = new URL(tab.url);
+      jobDataId = url.searchParams.get("jobDataId");
+    }
 
     // If no jobDataId parameter, check for any recent job data
     if (!jobDataId) {
@@ -233,7 +227,7 @@ async function handleJobFormPage(tabId) {
     try {
       const jobData = JSON.parse(data[key]);
 
-      // Send the data to the content script
+      // Send the data to the content script to fill the form
       await browser.tabs.sendMessage(tabId, {
         action: "fillJobForm",
         data: jobData,
@@ -281,6 +275,10 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     .executeScript(tabId, {
                       code: `
                     try {
+                      // Clear any existing data first
+                      localStorage.removeItem('pendingJobData');
+                      
+                      // Set the new data
                       localStorage.setItem('pendingJobData', '${data[
                         key
                       ].replace(/'/g, "\\'")}');

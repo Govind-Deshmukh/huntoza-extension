@@ -9,8 +9,14 @@
 // Import the modular extractors
 import { extractJobData, detectJobPlatform } from "./extractors/index.js";
 import { showNotification } from "./utils/notification.js";
-import { storeJobData, checkForExtensionData } from "./content/storage.js";
+import {
+  storeJobData,
+  checkForExtensionData,
+  clearLocalJobData,
+  clearSessionData,
+} from "./content/storage.js";
 import { injectJobData, waitForElement } from "./content/form-handlers.js";
+import { checkAuthFromContent } from "./utils/auth.js";
 
 console.log("PursuitPal content script loaded");
 
@@ -23,11 +29,29 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "extractJobData") {
     console.log("Extracting job data from content script");
-    const jobData = extractJobData();
-    console.log("Job data extracted:", jobData);
-    sendResponse(jobData);
+
+    // Check authentication first
+    checkAuthFromContent().then((isAuthenticated) => {
+      if (!isAuthenticated) {
+        sendResponse({
+          success: false,
+          error:
+            "Authentication required. Please log in to PursuitPal web app.",
+        });
+        return;
+      }
+
+      const jobData = extractJobData();
+      console.log("Job data extracted:", jobData);
+      sendResponse({ success: true, data: jobData });
+    });
     return true;
   } else if (message.action === "injectJobData") {
+    // Clear any previous data first
+    clearLocalJobData();
+    clearSessionData();
+
+    // Then inject the new data
     injectJobData(message.data);
     sendResponse({ success: true });
     return true;
@@ -43,6 +67,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
   } else if (message.action === "fillJobForm") {
+    // Clear any previous data first
+    clearLocalJobData();
+    clearSessionData();
+
     // Fill the form with job data
     injectJobData(message.data);
     sendResponse({ success: true });
@@ -78,6 +106,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           .then(
             (response) => {
               if (response && response.data) {
+                // Clear any existing data first
+                clearLocalJobData();
+                clearSessionData();
+
+                // Inject the new data
                 injectJobData(response.data);
               }
             },
@@ -92,6 +125,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         browser.runtime.sendMessage({ action: "pageIsJobForm" }).then(
           (response) => {
             if (response && response.data) {
+              // Clear any existing data first
+              clearLocalJobData();
+              clearSessionData();
+
+              // Inject the new data
               injectJobData(response.data);
             }
           },
@@ -115,12 +153,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         .then((data) => data.options || { autoExtract: false });
 
       if (options.autoExtract) {
-        // Show a notification to let the user know they can extract job data
-        showNotification(
-          "Job detected! Click the PursuitPal icon to save this job.",
-          "info",
-          5000
-        );
+        // Also check if user is authenticated before showing notification
+        const isAuthenticated = await checkAuthFromContent();
+
+        if (isAuthenticated) {
+          // Show a notification to let the user know they can extract job data
+          showNotification(
+            "Job detected! Click the PursuitPal icon to save this job.",
+            "info",
+            5000
+          );
+        }
       }
     }
   } catch (error) {
@@ -141,7 +184,11 @@ if (window.location.href.includes("pursuitpal.app/jobs/new")) {
     // Will be handled by pageIsJobForm message
   } else {
     // Regular checks for any pending job data
-    setTimeout(checkForExtensionData, 500);
+    setTimeout(() => {
+      clearLocalJobData(); // Clear any existing data first
+      clearSessionData();
+      checkForExtensionData();
+    }, 500);
     setTimeout(checkForExtensionData, 1000);
     setTimeout(checkForExtensionData, 2000);
   }

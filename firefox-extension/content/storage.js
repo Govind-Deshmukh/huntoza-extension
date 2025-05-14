@@ -1,3 +1,5 @@
+// content/storage.js
+
 /**
  * content/storage.js - Storage utilities
  *
@@ -38,19 +40,9 @@ export function storeJobData(data, key = "pendingJobData") {
  */
 export function checkForExtensionData() {
   try {
-    // Check if we already processed this data in this session
-    const processedFlags =
-      sessionStorage.getItem("pursuitpal_processed_data") || "[]";
-    const processed = JSON.parse(processedFlags);
-
     // Get URL parameters
     const url = new URL(window.location.href);
     const jobDataId = url.searchParams.get("jobDataId");
-
-    // If there's a jobDataId and we've already processed it, don't do it again
-    if (jobDataId && processed.includes(jobDataId)) {
-      return false;
-    }
 
     // Check for job data
     const pendingJobData = localStorage.getItem("pendingJobData");
@@ -78,14 +70,10 @@ export function checkForExtensionData() {
           })
         );
 
-        // Mark this data as processed
-        if (jobDataId) {
-          processed.push(jobDataId);
-          sessionStorage.setItem(
-            "pursuitpal_processed_data",
-            JSON.stringify(processed)
-          );
-        }
+        // Important: Clear the data after it's been used to prevent reuse
+        setTimeout(() => {
+          localStorage.removeItem("pendingJobData");
+        }, 1000);
 
         return true;
       } catch (e) {
@@ -174,6 +162,21 @@ export function clearLocalJobData() {
     return true;
   } catch (error) {
     console.error("Error clearing job data:", error);
+    return false;
+  }
+}
+
+/**
+ * Clear all session data related to form fills
+ */
+export function clearSessionData() {
+  try {
+    sessionStorage.removeItem("pursuitpal_form_fills");
+    sessionStorage.removeItem("pursuitpal_form_injections");
+    sessionStorage.removeItem("pursuitpal_processed_data");
+    return true;
+  } catch (error) {
+    console.error("Error clearing session data:", error);
     return false;
   }
 }
