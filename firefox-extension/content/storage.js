@@ -17,14 +17,10 @@ export function storeJobData(data, key = "pendingJobData") {
   try {
     // First clear any existing data to prevent issues with old data
     localStorage.removeItem(key);
-
-    // Store new data
     localStorage.setItem(key, JSON.stringify(data));
-    console.log(`Job data stored in localStorage with key ${key}:`, data);
 
     // Add timestamp to data to track when it was stored
     data._timestamp = Date.now();
-
     return true;
   } catch (error) {
     console.error("Error storing job data:", error);
