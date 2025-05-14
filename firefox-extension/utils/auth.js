@@ -1,22 +1,25 @@
-// utils/auth.js
-/**
- * utils/auth.js - Authentication utilities
- *
- * Handles authentication with PursuitPal web app.
- */
+export function checkAuthFromContent() {
+  return new Promise((resolve) => {
+    // Send message to background script to check auth
+    browser.runtime
+      .sendMessage({ action: "checkAuth" })
+      .then((response) => {
+        resolve(response.isAuthenticated === true);
+      })
+      .catch((error) => {
+        console.error("Error checking auth from content:", error);
+        resolve(false);
+      });
+  });
+}
 
-/**
- * Check if user is authenticated with PursuitPal web app
- *
- * @return {Promise<Object>} - Promise resolving to authentication status and user data
- */
 export async function checkPursuitPalAuth() {
   try {
     const response = await fetch(
       "https://api.pursuitpal.app/api/v1/auth/check-extension-auth",
       {
         method: "GET",
-        credentials: "include",
+        credentials: "include", // Important: ensures cookies are sent
       }
     );
 
@@ -32,12 +35,6 @@ export async function checkPursuitPalAuth() {
   }
 }
 
-/**
- * Open PursuitPal login page
- *
- * @param {string} [returnPath="/dashboard"] - Path to return to after login
- * @return {Promise<Object>} - Promise resolving to tab data
- */
 export async function openPursuitPalLogin(returnPath = "/dashboard") {
   try {
     const encodedPath = encodeURIComponent(returnPath);
@@ -50,24 +47,4 @@ export async function openPursuitPalLogin(returnPath = "/dashboard") {
     console.error("Error opening PursuitPal login:", error);
     return { success: false, error: error.message };
   }
-}
-
-/**
- * Check if user is logged in to PursuitPal web app from content script
- *
- * @return {Promise<boolean>} - Promise resolving to authentication status
- */
-export function checkAuthFromContent() {
-  return new Promise((resolve) => {
-    // Send message to background script to check auth
-    browser.runtime
-      .sendMessage({ action: "checkAuth" })
-      .then((response) => {
-        resolve(response.isAuthenticated === true);
-      })
-      .catch((error) => {
-        console.error("Error checking auth from content:", error);
-        resolve(false);
-      });
-  });
 }
